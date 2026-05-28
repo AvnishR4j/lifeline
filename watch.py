@@ -34,15 +34,35 @@ HERE = Path(__file__).resolve().parent
 # hide the limit message.
 ANSI_RE = re.compile(rb"\x1b\[[0-9;?]*[ -/]*[@-~]")
 
-# Phrases that signal an involuntary usage/rate-limit interruption. Kept
-# reasonably specific to avoid false positives on ordinary output.
+# Phrases that signal an involuntary usage/rate-limit interruption.
+#
+# These are derived from the actual strings in the Claude Code binary
+# (v2.1.156): "usage limit reached" is its canonical blocked-state phrase, and
+# "/upgrade to increase your usage limit." is the user-facing nudge. We keep the
+# patterns SPECIFIC to usage/rate limits, because Claude Code emits several other
+# "... limit reached" messages that must NOT trigger a handoff (see
+# _NON_LIMIT_PATTERNS and the selftest): a bare "limit reached" match would fire
+# on all of them.
 LIMIT_PATTERNS = [
     re.compile(r"usage limit reached", re.I),
-    re.compile(r"you'?ve reached your usage limit", re.I),
-    re.compile(r"rate limit(?:ed| reached| exceeded)", re.I),
-    re.compile(r"\blimit reached\b", re.I),
-    re.compile(r"resets? at\b", re.I),
-    re.compile(r"approaching .* usage limit", re.I),
+    re.compile(r"reached your (?:usage|account|plan) limit", re.I),
+    re.compile(r"upgrade to increase your usage limit", re.I),
+    re.compile(r"approaching .{0,30}usage limit", re.I),
+    re.compile(r"rate limit(?:ed|ing| reached| exceeded)", re.I),
+    # Session / weekly / monthly limit banners, e.g. "5-hour limit reached ∙
+    # resets in 2h" — require a window word adjacent to "limit" + reached/reset.
+    re.compile(r"\b(?:\d+-hour|hourly|weekly|monthly|session)\b[^.\n]{0,40}\blimit\b[^.\n]{0,40}\b(?:reached|reset)", re.I),
+]
+
+# Look-alikes that contain "limit" but are NOT usage/rate-limit interruptions.
+# If a chunk matches a LIMIT_PATTERN but the surrounding text also matches one of
+# these, we suppress it (defends the broader rate-limit pattern against e.g.
+# "Server is temporarily limiting requests (not your usage limit)").
+_NON_LIMIT_PATTERNS = [
+    re.compile(r"context limit", re.I),
+    re.compile(r"not your usage limit", re.I),
+    re.compile(r"fast limit reached", re.I),          # only disables fast mode
+    re.compile(r"(?:concurrent|export|recursion|size|stack|jit) limit", re.I),
 ]
 
 
@@ -62,12 +82,18 @@ class LimitWatcher:
         text = ANSI_RE.sub(b"", buf).decode("utf-8", "ignore")
         for pat in LIMIT_PATTERNS:
             m = pat.search(text)
-            if m:
+            if m and not self._is_false_positive(text):
                 self.detected = True
                 self.matched_phrase = m.group(0)
                 return
         # Keep a small tail so a phrase spanning two reads is still caught.
         self._tail = buf[-512:]
+
+    @staticmethod
+    def _is_false_positive(text: str) -> bool:
+        """True if the text is a look-alike (context/fast/server limit), not an
+        actual usage/rate-limit interruption."""
+        return any(p.search(text) for p in _NON_LIMIT_PATTERNS)
 
 
 def run_wrapped(command, watcher: LimitWatcher) -> int:
@@ -138,9 +164,20 @@ def fire_handoff(target: str, dry_run: bool):
 def selftest():
     """Verify detection on representative strings without running any CLI."""
     cases = [
-        ("Usage limit reached. Resets at 2pm.", True),
-        ("\x1b[31mYou've reached your usage limit\x1b[0m for Claude Pro.", True),
+        # --- real Claude Code usage-limit signals (should DETECT) ---
+        ("Claude usage limit reached ∙ resets in 2h", True),
+        ("\x1b[31mClaude usage limit reached\x1b[0m — check plan", True),
+        ("/upgrade to increase your usage limit.", True),
+        ("You've reached your usage limit for Claude Pro.", True),
+        ("5-hour limit reached ∙ resets in 2h", True),
         ("Error: rate limited, try again later", True),
+        ("approaching your usage limit", True),
+        # --- look-alikes that must NOT trigger a handoff ---
+        ("Context limit reached — use /compact to continue", False),
+        ("Fast limit reached and temporarily disabled", False),
+        ("Server is temporarily limiting requests (not your usage limit)", False),
+        ("Concurrent export limit reached", False),
+        # --- ordinary output ---
         ("Compiling project... 42 files, no limit on output here", False),
         ("the rate of growth was high", False),
     ]
