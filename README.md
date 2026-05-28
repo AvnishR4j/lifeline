@@ -73,6 +73,9 @@ The handoff ships session content to another AI provider, so:
 
 ### Known limitations (v0)
 
+- **One-directional**: Lifeline currently only captures **Claude Code** as the
+  source (it reads `~/.claude/projects/*.jsonl`). The reverse — e.g. resuming a
+  rate-limited *Codex* session in Claude — is not yet supported (see roadmap).
 - **Prompt injection**: session content is wrapped and labeled as historical
   context, but a determined injection inside the session could still influence the
   resuming CLI. Acceptable for v0 since the session is your own.
@@ -81,5 +84,12 @@ The handoff ships session content to another AI provider, so:
 
 ## Roadmap
 
+- **Bidirectional / any→any handoff.** Today capture is Claude-specific. Make the
+  source pluggable via a "source registry" mirroring the existing `TARGETS`
+  registry in `handoff.py`, so any CLI can be the source *or* the destination
+  (e.g. Codex→Claude when Codex hits its limit). Needed pieces: a reader per CLI
+  (Codex already stores history at `~/.codex/sessions/.../rollout-*.jsonl`;
+  Gemini stores its own), registering `claude`/`gemini` as launch targets, each
+  CLI's real limit-message string, and a `--from <cli>` flag to select the reader.
 - More targets: `cursor`, and others.
 - Packaging as an installable CLI.
