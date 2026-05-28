@@ -26,6 +26,8 @@ import termios
 import tty
 from pathlib import Path
 
+import handoff  # for SUPPORTED_TARGETS so --to is validated up front
+
 HERE = Path(__file__).resolve().parent
 
 # Strip ANSI escape sequences before matching, so colored TUI output doesn't
@@ -163,7 +165,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Wrap an AI CLI and auto-hand off when its usage limit hits."
     )
-    parser.add_argument("--to", default="codex",
+    parser.add_argument("--to", default="codex", choices=sorted(handoff.SUPPORTED_TARGETS),
                         help="Target CLI to hand off to (default: codex).")
     parser.add_argument("--dry-run", action="store_true",
                         help="On detection, build the handoff but don't launch the target CLI.")
