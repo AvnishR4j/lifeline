@@ -12,8 +12,23 @@ but the forced one when the limit hits.
 
 ## Usage
 
+### Automatic (recommended)
+
+Wrap your AI CLI. Lifeline watches its output and, the moment a usage limit
+appears, hands your context off to another CLI when the session ends — you don't
+have to remember to run anything.
+
 ```bash
-# When Claude Code hits its limit, resume in Codex:
+python3 watch.py                 # wraps `claude`, hands off to codex on a limit
+python3 watch.py --to codex      # explicit target
+python3 watch.py -- claude --foo # pass extra flags through to the wrapped CLI
+```
+
+### Manual
+
+Run the handoff yourself when a limit hits:
+
+```bash
 python3 handoff.py --to codex
 
 # Preview what would be sent without launching anything:
@@ -31,6 +46,7 @@ This will:
 
 | File | Role |
 |------|------|
+| `watch.py` | Wraps an AI CLI in a PTY, watches output for a usage limit, auto-fires the handoff. |
 | `extractor.py` | Reads the latest Claude session JSONL → structured markdown handoff. |
 | `redact.py` | Scrubs secrets from text before it leaves the machine. |
 | `handoff.py` | Orchestrates capture → redact → write → launch target CLI. |
