@@ -21,6 +21,7 @@ have to remember to run anything.
 ```bash
 python3 watch.py                 # wraps `claude`, hands off to codex on a limit
 python3 watch.py --to codex      # explicit target
+python3 watch.py --to gemini     # hand off to Gemini CLI instead
 python3 watch.py -- claude --foo # pass extra flags through to the wrapped CLI
 ```
 
@@ -29,11 +30,14 @@ python3 watch.py -- claude --foo # pass extra flags through to the wrapped CLI
 Run the handoff yourself when a limit hits:
 
 ```bash
-python3 handoff.py --to codex
+python3 handoff.py --to codex     # or: --to gemini
 
 # Preview what would be sent without launching anything:
 python3 handoff.py --to codex --dry-run
 ```
+
+Supported targets: `codex`, `gemini`. (Gemini uses `gemini -i "<prompt>"`; verify
+the flag against your installed `@google/gemini-cli` version.)
 
 This will:
 1. Find your most recent Claude Code session (`~/.claude/projects/`).
@@ -77,6 +81,5 @@ The handoff ships session content to another AI provider, so:
 
 ## Roadmap
 
-- Auto-detection: wrap the CLI and fire on "Usage limit reached" automatically.
-- More targets: `gemini`, `cursor`.
+- More targets: `cursor`, and others.
 - Packaging as an installable CLI.

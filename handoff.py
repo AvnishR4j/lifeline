@@ -27,7 +27,6 @@ HANDOFF_DIR = Path(__file__).resolve().parent / ".lifeline"
 
 # Targets we know how to launch. Each maps to a function that, given the handoff
 # file path, returns the argv list to exec (never a shell string).
-SUPPORTED_TARGETS = {"codex"}
 
 
 def _seed_prompt(handoff_path: Path) -> str:
@@ -38,11 +37,31 @@ def _seed_prompt(handoff_path: Path) -> str:
     )
 
 
+def _codex_argv(handoff_path: Path):
+    # `codex "<prompt>"` launches an interactive session seeded with the prompt.
+    return ["codex", _seed_prompt(handoff_path)]
+
+
+def _gemini_argv(handoff_path: Path):
+    # `gemini -i "<prompt>"` (--prompt-interactive) starts an interactive session
+    # seeded with the prompt. Verify the flag against your installed gemini-cli.
+    return ["gemini", "-i", _seed_prompt(handoff_path)]
+
+
+# Each target maps its CLI name to a builder returning an argv list (no shell).
+TARGETS = {
+    "codex": _codex_argv,
+    "gemini": _gemini_argv,
+}
+SUPPORTED_TARGETS = set(TARGETS)
+
+
 def build_target_argv(target: str, handoff_path: Path):
     """Return the argv list to launch the target CLI. No shell, no injection."""
-    if target == "codex":
-        return ["codex", _seed_prompt(handoff_path)]
-    raise ValueError(f"Unsupported target: {target}")
+    try:
+        return TARGETS[target](handoff_path)
+    except KeyError:
+        raise ValueError(f"Unsupported target: {target}")
 
 
 def write_handoff_file(text: str) -> Path:
