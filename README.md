@@ -21,6 +21,37 @@ context, zero re-explanation.
      editor at this spot — GitHub uploads it and inserts a player URL that embeds
      inline — then commit. -->
 
+## Requirements
+
+- **OS:** macOS or Linux. (Windows isn't supported yet — the auto-detect wrapper
+  uses Unix PTYs.)
+- **Python 3.8+** — no third-party packages, pure standard library.
+- **The source CLI:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+  (Lifeline reads its local session files under `~/.claude/projects/`).
+- **At least one target CLI, installed _and_ authenticated:**
+  - [Codex CLI](https://github.com/openai/codex) — `codex login`
+  - and/or [Gemini CLI](https://github.com/google-gemini/gemini-cli) — `gemini` (sign in once)
+
+  If your target isn't logged in, the handoff will launch it but you'll just land
+  on its login screen — so authenticate it first.
+
+## Quickstart
+
+```bash
+git clone https://github.com/AvnishR4j/lifeline.git
+cd lifeline
+
+# Manual: after Claude Code hits a limit, resume in Codex with full context
+python3 handoff.py --to codex          # or --to gemini
+
+# Preview exactly what would be sent first (nothing is launched):
+python3 handoff.py --to codex --dry-run
+```
+
+For the **automatic** experience, start Claude Code through Lifeline instead of
+launching `claude` directly (see Usage below). There's no install step and no
+`pip` — it's clone-and-run.
+
 ## Usage
 
 ### Automatic (recommended)
