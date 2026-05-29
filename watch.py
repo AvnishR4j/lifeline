@@ -161,6 +161,23 @@ def fire_handoff(target: str, dry_run: bool):
     return subprocess.run(argv).returncode
 
 
+def _confirm(question: str, default_yes: bool, auto_yes: bool) -> bool:
+    """Ask a yes/no question. Returns True to proceed.
+
+    --yes (auto_yes) or a non-interactive stdin both proceed without prompting,
+    so scripts/tests/the demo aren't blocked waiting on input."""
+    if auto_yes or not sys.stdin.isatty():
+        return True
+    suffix = "[Y/n]" if default_yes else "[y/N]"
+    try:
+        answer = input(f"\n   {question} {suffix} ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return False
+    if not answer:
+        return default_yes
+    return answer in ("y", "yes")
+
+
 def selftest():
     """Verify detection on representative strings without running any CLI."""
     cases = [
@@ -206,6 +223,8 @@ def main():
                         help="Target CLI to hand off to (default: codex).")
     parser.add_argument("--dry-run", action="store_true",
                         help="On detection, build the handoff but don't launch the target CLI.")
+    parser.add_argument("-y", "--yes", action="store_true",
+                        help="Skip the confirmation prompt and hand off automatically.")
     parser.add_argument("--selftest", action="store_true",
                         help="Run detection self-tests and exit.")
     parser.add_argument("command", nargs=argparse.REMAINDER,
@@ -231,17 +250,29 @@ def main():
 
     exit_code = run_wrapped(command, watcher)
 
-    if watcher.detected:
-        print("\n" + "=" * 60, file=sys.stderr)
-        print(f"⚡ Lifeline: usage limit detected "
-              f"(matched {watcher.matched_phrase!r}).", file=sys.stderr)
-        print(f"   Capturing context and handing off to {args.to}…", file=sys.stderr)
-        print("=" * 60 + "\n", file=sys.stderr)
-        sys.exit(fire_handoff(args.to, args.dry_run))
-    else:
+    if not watcher.detected:
         print(f"\n⚡ Lifeline: `{command[0]}` exited without hitting a limit. "
               f"No handoff needed.", file=sys.stderr)
         sys.exit(exit_code)
+
+    # A usage limit was seen during the session. Make it obvious what happened,
+    # then confirm before launching — the user may have waited out the limit and
+    # kept working, in which case they don't want a handoff.
+    print("\n" + "=" * 60, file=sys.stderr)
+    print(f"⚡ Lifeline: a usage limit was detected during this session "
+          f"(matched {watcher.matched_phrase!r}).", file=sys.stderr)
+    print(f"   Lifeline can resume your work in {args.to} with full context.",
+          file=sys.stderr)
+    print("=" * 60, file=sys.stderr)
+
+    if not _confirm(f"Resume in {args.to} now?", default_yes=True,
+                    auto_yes=args.yes):
+        print(f"\n   Skipped. Run `python3 handoff.py --to {args.to}` later "
+              f"to resume whenever you want.", file=sys.stderr)
+        sys.exit(exit_code)
+
+    print(f"\n   Capturing context and handing off to {args.to}…\n", file=sys.stderr)
+    sys.exit(fire_handoff(args.to, args.dry_run))
 
 
 if __name__ == "__main__":
