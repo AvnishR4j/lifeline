@@ -4,6 +4,16 @@ The goal of posting is **not** upvotes — it's signal. Watch for comments like
 "I need this" / "does it do X" (real demand) vs "neat" (polite indifference).
 Reply to every comment; that's where you learn what to build next.
 
+## Links (paste where each draft says [link] / [demo video])
+
+- **Repo:** https://github.com/AvnishR4j/lifeline
+- **Release page (share this on HN):** https://github.com/AvnishR4j/lifeline/releases/tag/v0.1.0
+- **Demo video (direct file):** https://github.com/AvnishR4j/lifeline/releases/download/v0.1.0/lifeline-demo.mov
+
+> Posting tip: on **Reddit and X, upload the .mov directly to the post** so it
+> autoplays natively (use the GitHub link only as a backup). On **Hacker News**,
+> there are no video uploads — use the release-page link above.
+
 ---
 
 ## Reddit — r/ClaudeAI (primary)
@@ -28,7 +38,8 @@ It also **redacts secrets** (API keys, tokens, `.env` values) before any context
 leaves your machine — I didn't want to ship my own keys to another provider just
 to keep working.
 
-30-second demo: [link]
+30-second demo: (upload the .mov directly to this post; backup link:
+https://github.com/AvnishR4j/lifeline/releases/download/v0.1.0/lifeline-demo.mov )
 Code (MIT, ~600 lines of Python): https://github.com/AvnishR4j/lifeline
 
 It's early and rough. I'm genuinely trying to find out: **does this happen to
@@ -55,7 +66,7 @@ pty.spawn, which hangs on non-tty stdin) to watch for the limit message while
 keeping the wrapped CLI fully interactive.
 
 Repo: https://github.com/AvnishR4j/lifeline
-Demo: [link]
+Demo: https://github.com/AvnishR4j/lifeline/releases/tag/v0.1.0
 
 Known limitations and where I'd love feedback: it depends on the CLI's
 transcript format and limit-message strings (fragile to upstream changes), and
@@ -69,7 +80,8 @@ the right second target CLI is.
 
 1/ When your AI coding CLI hits its usage limit mid-task, you lose everything
 switching tools. I built Lifeline to fix that. One command → resume in another
-CLI with full context. Zero re-explanation. 🧵 [demo video]
+CLI with full context. Zero re-explanation. 🧵 (attach the .mov directly here so
+it autoplays; backup: https://github.com/AvnishR4j/lifeline/releases/tag/v0.1.0 )
 
 2/ It captures the task, recent conversation, decisions, and your uncommitted
 git diff — then hands off to Codex (more CLIs coming).
