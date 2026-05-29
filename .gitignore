@@ -2,3 +2,7 @@ node_modules/
 .env
 *.log
 .lifeline/
+
+# private working notes (kept local, not published)
+LAUNCH.md
+DEMO.md
