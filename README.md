@@ -10,6 +10,17 @@ single command, **zero re-explanation**.
 It targets the *involuntary interruption* moment: not a manual switch you chose,
 but the forced one when the limit hits.
 
+## Demo
+
+▶️ **[Watch the 30-second demo](https://github.com/AvnishR4j/lifeline/blob/main/lifeline-demo.mov)**
+— Claude Code hits a usage limit, and Lifeline resumes the work in Codex with full
+context, zero re-explanation.
+
+<!-- To make the video autoplay inline here instead of as a link: open this README
+     in GitHub's web editor (the pencil icon), drag `lifeline-demo.mov` into the
+     editor at this spot — GitHub uploads it and inserts a player URL that embeds
+     inline — then commit. -->
+
 ## Usage
 
 ### Automatic (recommended)
