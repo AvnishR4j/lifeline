@@ -29,6 +29,6 @@ else
   pause 2
   say "Simulating the moment the limit hits mid-task:"
   pause 1
-  python3 watch.py --to codex -y -- bash -c \
+  python3 watch.py --to codex -- bash -c \
     "echo 'Editing payment-retry.py — fixing the backoff logic...'; sleep 1; echo; echo 'Claude usage limit reached ∙ resets in 2h'"
 fi
