@@ -16,63 +16,54 @@ Reply to every comment; that's where you learn what to build next.
 
 ---
 
-## Reddit — r/ClaudeAI (primary)
+## Reddit — r/ClaudeAI (primary)  ← POST THIS FIRST
 
-**Title:** I got tired of losing all my context when Claude hits its usage limit, so I built a tool that hands off to Codex automatically
+**How to post:** Use the **"Images & Video"** tab, upload `lifeline-demo.mp4`
+(3.4 MB — autoplays in-feed). Paste the title. Put the body as the FIRST COMMENT
+right after posting (video posts often don't take body text). Do NOT use the
+"Link" tab — a bare URL has no video and no story, and gets far less traction.
 
-**Body:**
+**Title:**
+I got tired of losing all my context when Claude hits its usage limit, so I built a tool that hands off to Codex/Gemini automatically
 
-You know the moment: you're deep into a debugging session, Claude is mid-edit,
-and then — *"Usage limit reached. Resets at 2pm."*
+**Body (paste as the first comment):**
 
-So you switch to another CLI. But it knows nothing. You spend 15 minutes
-re-explaining the project, the goal, what you already tried. By the time it's
-caught up, you've lost the thread.
+You know the moment: you're deep into a debugging session, Claude is mid-edit, and then — "Usage limit reached."
 
-I built **Lifeline** to kill that moment. When your AI CLI hits its limit, one
-command captures the full state — the task, recent conversation, decisions, and
-your uncommitted `git diff` — and resumes you in another CLI (Codex today) that
-picks up exactly where you left off. Zero re-explanation.
+So you switch to another CLI. But it knows nothing. You spend 15 minutes re-explaining the project, the goal, what you already tried. By the time it's caught up, you've lost the thread.
 
-It also **redacts secrets** (API keys, tokens, `.env` values) before any context
-leaves your machine — I didn't want to ship my own keys to another provider just
-to keep working.
+I built Lifeline to kill that moment. When Claude Code hits its limit, one command captures the full state — the task, recent conversation, decisions, and your uncommitted git diff — and resumes you in another CLI (Codex or Gemini) that picks up exactly where you left off. Zero re-explanation.
 
-30-second demo: (upload the .mov directly to this post; backup link:
-https://github.com/AvnishR4j/lifeline/releases/download/v0.1.0/lifeline-demo.mov )
-Code (MIT, ~600 lines of Python): https://github.com/AvnishR4j/lifeline
+It also redacts secrets (API keys, tokens, .env values) before any context leaves your machine — I didn't want to ship my own keys to another provider just to keep working.
 
-It's early and rough. I'm genuinely trying to find out: **does this happen to
-you often enough that you'd use this?** And which CLI pair matters most to you —
-Claude→Codex, Claude→Gemini, something else?
+It can also run as a wrapper that auto-detects the limit message and offers the handoff for you.
+
+Open source, MIT, pure Python (no dependencies): https://github.com/AvnishR4j/lifeline
+
+It's early and rough. I'm genuinely trying to find out: does this happen to you often enough that you'd use it? And which CLI pair matters most — Claude→Codex, Claude→Gemini, something else?
 
 ---
 
-## Hacker News — Show HN
+## Hacker News — Show HN  ← POST AFTER Reddit reactions come in
+
+**How to post:** HN has no video upload. Put the repo as the post URL (or use a
+text post and link both). Submit once, never repost. Reply to every comment fast;
+be candid about limitations — HN rewards that, punishes hype. Best time: weekday
+~8–10am US Eastern.
 
 **Title:** Show HN: Lifeline – Resume your AI CLI session in another tool when you hit a limit
 
-**Body:**
+**URL:** https://github.com/AvnishR4j/lifeline
 
-When Claude Code (or any paid AI CLI) hits its usage limit mid-task, you're
-forced to switch tools and lose all context. Lifeline captures the session state
-— task, recent turns, decisions, uncommitted git diff — scrubs any secrets, and
-resumes you in another CLI with one command. No re-explaining.
+**Body (the text/first comment):**
 
-Technical notes for HN: it reads the local session transcript, redacts secrets
-with local regex before anything is sent to another provider, and the
-auto-detection mode wraps the CLI in a PTY (manual pty.fork + select relay, not
-pty.spawn, which hangs on non-tty stdin) to watch for the limit message while
-keeping the wrapped CLI fully interactive.
+When Claude Code hits its usage limit mid-task, you're forced to switch tools and lose all context. Lifeline captures the session state — task, recent turns, decisions, uncommitted git diff — scrubs any secrets, and resumes you in another CLI (Codex or Gemini) with one command. No re-explaining.
 
-Repo: https://github.com/AvnishR4j/lifeline
-Demo: https://github.com/AvnishR4j/lifeline/releases/tag/v0.1.0
+Technical notes for HN: it reads Claude Code's local session transcript (~/.claude/projects/*.jsonl), redacts secrets with local regex before anything is sent to another provider, and delivers the handoff inline as the seed prompt (not via a file — target CLIs like Gemini refuse to read gitignored paths). The auto-detection mode wraps the CLI in a PTY — manual pty.fork + select relay rather than pty.spawn, which hangs on non-tty stdin — to watch for the limit message while keeping the wrapped CLI fully interactive. The limit-detection patterns were pulled from the actual strings in the Claude Code binary, and guard against look-alikes ("Context limit reached", "Fast limit reached") that shouldn't trigger a handoff. Pure Python stdlib, no dependencies; macOS/Linux.
 
-Known limitations and where I'd love feedback: it depends on the CLI's
-transcript format and limit-message strings (fragile to upstream changes), and
-prompt-injection from session content into the resuming CLI is only partially
-mitigated. Curious whether people hit this pain often enough to want it, and what
-the right second target CLI is.
+Demo (30s): https://github.com/AvnishR4j/lifeline/blob/main/lifeline-demo.mp4
+
+Known limitations and where I'd love feedback: capture is currently Claude-specific (one-directional — see the roadmap for the any→any source-registry plan); it depends on transcript format and limit-message strings (fragile to upstream changes); and prompt-injection from session content into the resuming CLI is only partially mitigated. Curious whether people hit this pain often enough to want it, and what the right second source/target CLI is.
 
 ---
 
