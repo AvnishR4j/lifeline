@@ -27,6 +27,7 @@ import tty
 from pathlib import Path
 
 import handoff  # for SUPPORTED_TARGETS so --to is validated up front
+import sources  # to map the wrapped CLI to a capture source
 
 HERE = Path(__file__).resolve().parent
 
@@ -36,19 +37,27 @@ ANSI_RE = re.compile(rb"\x1b\[[0-9;?]*[ -/]*[@-~]")
 
 # Phrases that signal an involuntary usage/rate-limit interruption.
 #
-# These are derived from the actual strings in the Claude Code binary
-# (v2.1.156): "usage limit reached" is its canonical blocked-state phrase, and
-# "/upgrade to increase your usage limit." is the user-facing nudge. We keep the
-# patterns SPECIFIC to usage/rate limits, because Claude Code emits several other
-# "... limit reached" messages that must NOT trigger a handoff (see
+# These are derived from the ACTUAL strings shipped in each CLI, not guesses:
+#   - Claude Code (binary v2.1.156): "usage limit reached" is its canonical
+#     blocked-state phrase; "/upgrade to increase your usage limit." is the nudge.
+#   - Codex (codex-cli 0.135.0): "You've hit your usage limit for <plan>"; its own
+#     retry logic keys on "rate limit" / "too many requests" / "429".
+#   - Gemini (gemini-cli 0.44.1): "Usage limit reached for <model>" and "Rate
+#     limit exceeded." (both already covered below); quota errors surface as the
+#     Google API status "RESOURCE_EXHAUSTED" / "429 Too Many Requests".
+# We keep the patterns SPECIFIC to usage/rate limits, because these CLIs emit
+# several other "... limit reached" messages that must NOT trigger a handoff (see
 # _NON_LIMIT_PATTERNS and the selftest): a bare "limit reached" match would fire
 # on all of them.
 LIMIT_PATTERNS = [
     re.compile(r"usage limit reached", re.I),
     re.compile(r"reached your (?:usage|account|plan) limit", re.I),
+    re.compile(r"hit your (?:usage|account|plan) limit", re.I),  # Codex
     re.compile(r"upgrade to increase your usage limit", re.I),
     re.compile(r"approaching .{0,30}usage limit", re.I),
     re.compile(r"rate limit(?:ed|ing| reached| exceeded)", re.I),
+    re.compile(r"too many requests", re.I),       # Codex/Gemini 429 surface text
+    re.compile(r"resource_exhausted", re.I),      # Google API quota status (Gemini)
     # Session / weekly / monthly limit banners, e.g. "5-hour limit reached ∙
     # resets in 2h" — require a window word adjacent to "limit" + reached/reset.
     re.compile(r"\b(?:\d+-hour|hourly|weekly|monthly|session)\b[^.\n]{0,40}\blimit\b[^.\n]{0,40}\b(?:reached|reset)", re.I),
@@ -153,9 +162,10 @@ def run_wrapped(command, watcher: LimitWatcher) -> int:
     return status
 
 
-def fire_handoff(target: str, dry_run: bool):
+def fire_handoff(target: str, dry_run: bool, from_cli: str = "auto"):
     """Reuse handoff.py rather than duplicating capture/redact/launch logic."""
-    argv = [sys.executable, str(HERE / "handoff.py"), "--to", target]
+    argv = [sys.executable, str(HERE / "handoff.py"),
+            "--to", target, "--from", from_cli]
     if dry_run:
         argv.append("--dry-run")
     return subprocess.run(argv).returncode
@@ -189,11 +199,19 @@ def selftest():
         ("5-hour limit reached ∙ resets in 2h", True),
         ("Error: rate limited, try again later", True),
         ("approaching your usage limit", True),
+        # --- real Codex usage-limit signals (should DETECT) ---
+        ("You've hit your usage limit for GPT-5.", True),
+        ("stream error: 429 Too Many Requests", True),
+        # --- real Gemini usage-limit signals (should DETECT) ---
+        ("Usage limit reached for gemini-2.5-pro", True),
+        ("Rate limit exceeded. Try again later.", True),
+        ("ApiError: status RESOURCE_EXHAUSTED", True),
         # --- look-alikes that must NOT trigger a handoff ---
         ("Context limit reached — use /compact to continue", False),
         ("Fast limit reached and temporarily disabled", False),
         ("Server is temporarily limiting requests (not your usage limit)", False),
         ("Concurrent export limit reached", False),
+        ("You've hit your character limit for this field", False),
         # --- ordinary output ---
         ("Compiling project... 42 files, no limit on output here", False),
         ("the rate of growth was high", False),
@@ -219,8 +237,9 @@ def main():
     parser = argparse.ArgumentParser(
         description="Wrap an AI CLI and auto-hand off when its usage limit hits."
     )
-    parser.add_argument("--to", default="codex", choices=sorted(handoff.SUPPORTED_TARGETS),
-                        help="Target CLI to hand off to (default: codex).")
+    parser.add_argument("--to", default=None, choices=sorted(handoff.SUPPORTED_TARGETS),
+                        help="Target CLI to hand off to (default: the first of "
+                             "codex/claude/gemini that isn't the wrapped CLI).")
     parser.add_argument("--dry-run", action="store_true",
                         help="On detection, build the handoff but don't launch the target CLI.")
     parser.add_argument("-y", "--yes", action="store_true",
@@ -243,6 +262,17 @@ def main():
 
     if shutil.which(command[0]) is None:
         sys.exit(f"Command not found on PATH: {command[0]}")
+
+    # Map the wrapped CLI to a capture source so the handoff reads the RIGHT
+    # session (not just whatever was most recent). Unknown CLIs fall back to auto.
+    from_cli = Path(command[0]).name
+    if from_cli not in sources.SUPPORTED_SOURCES:
+        from_cli = "auto"
+
+    # Default the target to the first known CLI that isn't the source, so wrapping
+    # e.g. codex doesn't try to hand off codex→codex.
+    if args.to is None:
+        args.to = next(t for t in ("codex", "claude", "gemini") if t != from_cli)
 
     watcher = LimitWatcher()
     print(f"⚡ Lifeline watching `{command[0]}` for usage limits "
@@ -272,7 +302,7 @@ def main():
         sys.exit(exit_code)
 
     print(f"\n   Capturing context and handing off to {args.to}…\n", file=sys.stderr)
-    sys.exit(fire_handoff(args.to, args.dry_run))
+    sys.exit(fire_handoff(args.to, args.dry_run, from_cli))
 
 
 if __name__ == "__main__":

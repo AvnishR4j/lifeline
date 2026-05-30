@@ -57,12 +57,15 @@ launching `claude` directly (see Usage below).
 
 Wrap your AI CLI. Lifeline watches its output and, the moment a usage limit
 appears, hands your context off to another CLI when the session ends — you don't
-have to remember to run anything.
+have to remember to run anything. It recognizes the real limit messages of
+**Claude Code, Codex, and Gemini**, captures from whichever you wrapped, and
+defaults the target to a *different* CLI automatically.
 
 ```bash
 lifeline watch                 # wraps `claude`, hands off to codex on a limit
-lifeline watch --to codex      # explicit target
-lifeline watch --to gemini     # hand off to Gemini CLI instead
+lifeline watch -- codex        # wrap Codex instead → hands off to claude
+lifeline watch -- gemini       # wrap Gemini → hands off to codex
+lifeline watch --to gemini     # pick the target explicitly
 lifeline watch -- claude --foo # pass extra flags through to the wrapped CLI
 ```
 
@@ -136,8 +139,8 @@ The handoff ships session content to another AI provider, so:
 ## Roadmap
 
 - **Any→any handoff.** ✅ The source is pluggable via a `sources.py` registry and
-  a `--from` flag, with `claude`, `codex`, and `gemini` readers and all three
-  registered as launch targets — so any pair works (Codex→Claude, Gemini→Claude,
-  …). **Remaining:** teach `watch.py` each CLI's real limit-message string so
-  auto-detection works when wrapping a non-Claude CLI (today it knows Claude's).
+  a `--from` flag, with `claude`, `codex`, and `gemini` readers all registered as
+  launch targets — so any pair works (Codex→Claude, Gemini→Claude, …). The
+  auto-detect wrapper (`watch.py`) recognizes all three CLIs' real limit messages
+  and wires the wrapped CLI through as the capture source.
 - More sources/targets: `cursor`, and others.
