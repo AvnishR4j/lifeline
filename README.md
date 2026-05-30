@@ -42,19 +42,22 @@ context, zero re-explanation.
 ## Quickstart
 
 ```bash
-git clone https://github.com/AvnishR4j/lifeline.git
-cd lifeline
+# Install (pure Python, no dependencies)
+pipx install git+https://github.com/AvnishR4j/lifeline.git
+# or: pip install git+https://github.com/AvnishR4j/lifeline.git
 
 # Manual: after Claude Code hits a limit, resume in Codex with full context
-python3 handoff.py --to codex          # or --to gemini
+lifeline handoff --to codex          # or --to gemini
 
 # Preview exactly what would be sent first (nothing is launched):
-python3 handoff.py --to codex --dry-run
+lifeline handoff --to codex --dry-run
 ```
 
 For the **automatic** experience, start Claude Code through Lifeline instead of
-launching `claude` directly (see Usage below). There's no install step and no
-`pip` — it's clone-and-run.
+launching `claude` directly (see Usage below).
+
+> Prefer not to install? It's pure standard library — `git clone` and run the
+> scripts directly (`python3 handoff.py …` / `python3 watch.py …`).
 
 ## Usage
 
@@ -65,10 +68,10 @@ appears, hands your context off to another CLI when the session ends — you don
 have to remember to run anything.
 
 ```bash
-python3 watch.py                 # wraps `claude`, hands off to codex on a limit
-python3 watch.py --to codex      # explicit target
-python3 watch.py --to gemini     # hand off to Gemini CLI instead
-python3 watch.py -- claude --foo # pass extra flags through to the wrapped CLI
+lifeline watch                 # wraps `claude`, hands off to codex on a limit
+lifeline watch --to codex      # explicit target
+lifeline watch --to gemini     # hand off to Gemini CLI instead
+lifeline watch -- claude --foo # pass extra flags through to the wrapped CLI
 ```
 
 ### Manual
@@ -76,10 +79,10 @@ python3 watch.py -- claude --foo # pass extra flags through to the wrapped CLI
 Run the handoff yourself when a limit hits:
 
 ```bash
-python3 handoff.py --to codex     # or: --to gemini
+lifeline handoff --to codex     # or: --to gemini
 
 # Preview what would be sent without launching anything:
-python3 handoff.py --to codex --dry-run
+lifeline handoff --to codex --dry-run
 ```
 
 Supported targets: `codex`, `gemini`. (Gemini uses `gemini -i "<prompt>"`; verify
@@ -138,4 +141,3 @@ The handoff ships session content to another AI provider, so:
   Gemini stores its own), registering `claude`/`gemini` as launch targets, each
   CLI's real limit-message string, and a `--from <cli>` flag to select the reader.
 - More targets: `cursor`, and others.
-- Packaging as an installable CLI.

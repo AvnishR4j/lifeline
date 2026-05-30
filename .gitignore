@@ -3,6 +3,13 @@ node_modules/
 *.log
 .lifeline/
 
+# Python build artifacts
+__pycache__/
+*.pyc
+build/
+dist/
+*.egg-info/
+
 # private working notes (kept local, not published)
 LAUNCH.md
 DEMO.md

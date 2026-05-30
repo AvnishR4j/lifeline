@@ -267,7 +267,7 @@ def main():
 
     if not _confirm(f"Resume in {args.to} now?", default_yes=True,
                     auto_yes=args.yes):
-        print(f"\n   Skipped. Run `python3 handoff.py --to {args.to}` later "
+        print(f"\n   Skipped. Run `lifeline handoff --to {args.to}` later "
               f"to resume whenever you want.", file=sys.stderr)
         sys.exit(exit_code)
 
