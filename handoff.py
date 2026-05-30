@@ -22,6 +22,7 @@ from pathlib import Path
 
 import extractor
 import redact
+import sources
 
 HANDOFF_DIR = Path(__file__).resolve().parent / ".lifeline"
 
@@ -57,10 +58,17 @@ def _gemini_argv(handoff_text: str):
     return ["gemini", "-i", _seed_prompt(handoff_text)]
 
 
+def _claude_argv(handoff_text: str):
+    # `claude "<prompt>"` starts an interactive Claude Code session seeded with
+    # the prompt — used when handing off *to* Claude (e.g. from a rate-limited Codex).
+    return ["claude", _seed_prompt(handoff_text)]
+
+
 # Each target maps its CLI name to a builder returning an argv list (no shell).
 TARGETS = {
     "codex": _codex_argv,
     "gemini": _gemini_argv,
+    "claude": _claude_argv,
 }
 SUPPORTED_TARGETS = set(TARGETS)
 
@@ -94,8 +102,15 @@ def main():
         help="Target CLI to hand off to (default: codex).",
     )
     parser.add_argument(
+        "--from", dest="from_cli", default="auto",
+        choices=["auto"] + sorted(sources.SUPPORTED_SOURCES),
+        help="Source CLI to capture context from (default: auto — the CLI with "
+             "the most recent session).",
+    )
+    parser.add_argument(
         "--project-dir", default=None,
-        help="Specific Claude project session dir (defaults to latest under ~/.claude/projects).",
+        help="Specific session dir for the source CLI (defaults to that CLI's "
+             "latest session). Must live under the source's session root.",
     )
     parser.add_argument(
         "--dry-run", action="store_true",
@@ -103,22 +118,42 @@ def main():
     )
     args = parser.parse_args()
 
-    # 1. Capture latest session and build the raw handoff.
+    # 0. Resolve which CLI we're capturing FROM.
+    if args.from_cli == "auto":
+        try:
+            source, session = sources.detect_latest_source()
+        except FileNotFoundError as e:
+            sys.exit(str(e))
+        print(f"✓  Auto-detected source: {source.display_name}", file=sys.stderr)
+    else:
+        source = sources.get_source(args.from_cli)
+        session = None
+
+    # Handing off to the same CLI you captured from is a no-op.
+    if args.to == source.name:
+        sys.exit(f"Source and target are both '{source.name}'. Pick a different --to.")
+
+    # 1. Capture the session and build the raw handoff.
     project_dir = Path(args.project_dir) if args.project_dir else None
     if project_dir is not None:
-        # Path safety: must resolve under ~/.claude/projects.
+        # Path safety: override must resolve under the source's session root.
         project_dir = project_dir.resolve()
-        allowed_root = extractor.CLAUDE_PROJECTS.resolve()
+        allowed_root = source.root.resolve()
         if allowed_root not in project_dir.parents and project_dir != allowed_root:
             sys.exit(f"Refusing to read outside {allowed_root}: {project_dir}")
 
-    try:
-        session = extractor.find_latest_session(project_dir)
-    except FileNotFoundError as e:
-        sys.exit(str(e))
+    if session is None or project_dir is not None:
+        try:
+            session = source.find_latest(project_dir)
+        except FileNotFoundError as e:
+            sys.exit(str(e))
 
-    data = extractor.parse_session(session)
-    raw_handoff = extractor.build_handoff(data)
+    data = source.parse(session)
+    raw_handoff = extractor.build_handoff(
+        data,
+        source_name=source.display_name,
+        assistant_label=source.assistant_label,
+    )
 
     # 2. Scrub secrets before anything leaves the machine.
     clean_handoff, findings = redact.redact(raw_handoff)

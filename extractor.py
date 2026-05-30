@@ -137,10 +137,20 @@ def get_git_diff(cwd: str) -> str:
         return ""
 
 
-def build_handoff(data: dict, max_turns: int = 12, max_diff_chars: int = 4000) -> str:
-    """Render a markdown handoff prompt for another AI CLI."""
+def build_handoff(
+    data: dict,
+    source_name: str = "Claude Code",
+    assistant_label: str = "Claude",
+    max_turns: int = 12,
+    max_diff_chars: int = 4000,
+) -> str:
+    """Render a markdown handoff prompt for another AI CLI.
+
+    `source_name`/`assistant_label` describe which CLI the context came from, so
+    the same renderer works for Claude, Codex, etc.
+    """
     lines = []
-    lines.append("# Resuming work from Claude Code\n")
+    lines.append(f"# Resuming work from {source_name}\n")
     lines.append(
         "You are picking up a coding session that was interrupted (rate limit). "
         "Below is the full context. Continue exactly where it left off — do not "
@@ -163,7 +173,7 @@ def build_handoff(data: dict, max_turns: int = 12, max_diff_chars: int = 4000) -
     if recent:
         lines.append("## Recent conversation")
         for role, text in recent:
-            label = "User" if role == "user" else "Claude"
+            label = "User" if role == "user" else assistant_label
             snippet = text if len(text) <= 600 else text[:600] + " …"
             lines.append(f"**{label}:** {snippet}\n")
 

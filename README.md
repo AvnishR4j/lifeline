@@ -71,14 +71,21 @@ lifeline watch -- claude --foo # pass extra flags through to the wrapped CLI
 Run the handoff yourself when a limit hits:
 
 ```bash
-lifeline handoff --to codex     # or: --to gemini
+lifeline handoff --to codex     # or: --to gemini, --to claude
+
+# By default Lifeline auto-detects the source CLI (whichever you used most
+# recently). Pin it explicitly with --from:
+lifeline handoff --from codex --to claude    # Codex hit its limit → resume in Claude
+lifeline handoff --from claude --to gemini   # Claude hit its limit → resume in Gemini
 
 # Preview what would be sent without launching anything:
 lifeline handoff --to codex --dry-run
 ```
 
-Supported targets: `codex`, `gemini`. (Gemini uses `gemini -i "<prompt>"`; verify
-the flag against your installed `@google/gemini-cli` version.)
+**Sources** (capture *from*, via `--from`): `claude`, `codex` (default: `auto`).
+**Targets** (resume *in*, via `--to`): `codex`, `gemini`, `claude`.
+(Gemini uses `gemini -i "<prompt>"`; verify the flag against your installed
+`@google/gemini-cli` version.)
 
 This will:
 1. Find your most recent Claude Code session (`~/.claude/projects/`).
@@ -92,9 +99,11 @@ This will:
 | File | Role |
 |------|------|
 | `watch.py` | Wraps an AI CLI in a PTY, watches output for a usage limit, auto-fires the handoff. |
-| `extractor.py` | Reads the latest Claude session JSONL → structured markdown handoff. |
+| `sources.py` | Registry of CLIs Lifeline can capture *from*; auto-detects the most recent session. |
+| `extractor.py` | Reads the latest Claude session JSONL → normalized handoff data + renderer. |
+| `codex_reader.py` | Reads the latest Codex `rollout-*.jsonl` session into the same normalized shape. |
 | `redact.py` | Scrubs secrets from text before it leaves the machine. |
-| `handoff.py` | Orchestrates capture → redact → write → launch target CLI. |
+| `handoff.py` | Orchestrates select source → capture → redact → write → launch target CLI. |
 
 ## Security model
 
@@ -114,9 +123,9 @@ The handoff ships session content to another AI provider, so:
 
 ### Known limitations (v0)
 
-- **One-directional**: Lifeline currently only captures **Claude Code** as the
-  source (it reads `~/.claude/projects/*.jsonl`). The reverse — e.g. resuming a
-  rate-limited *Codex* session in Claude — is not yet supported (see roadmap).
+- **Source coverage**: Lifeline can capture from **Claude Code** and **Codex**
+  today (both directions work, e.g. Codex→Claude). **Gemini** as a *source* is not
+  yet supported — it can only be a target for now (see roadmap).
 - **Prompt injection**: session content is wrapped and labeled as historical
   context, but a determined injection inside the session could still influence the
   resuming CLI. Acceptable for v0 since the session is your own.
@@ -125,11 +134,10 @@ The handoff ships session content to another AI provider, so:
 
 ## Roadmap
 
-- **Bidirectional / any→any handoff.** Today capture is Claude-specific. Make the
-  source pluggable via a "source registry" mirroring the existing `TARGETS`
-  registry in `handoff.py`, so any CLI can be the source *or* the destination
-  (e.g. Codex→Claude when Codex hits its limit). Needed pieces: a reader per CLI
-  (Codex already stores history at `~/.codex/sessions/.../rollout-*.jsonl`;
-  Gemini stores its own), registering `claude`/`gemini` as launch targets, each
-  CLI's real limit-message string, and a `--from <cli>` flag to select the reader.
+- **Any→any handoff.** ✅ The source is now pluggable via a `sources.py` registry
+  and a `--from` flag, with `claude` and `codex` readers and `claude` registered
+  as a launch target — so Codex→Claude works. **Remaining:** a **Gemini source
+  reader** (so Gemini can be captured *from*, not just handed off *to*), and
+  teaching `watch.py` each CLI's real limit-message string so auto-detection works
+  when wrapping a non-Claude CLI.
 - More targets: `cursor`, and others.
