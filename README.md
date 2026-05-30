@@ -82,7 +82,7 @@ lifeline handoff --from claude --to gemini   # Claude hit its limit → resume i
 lifeline handoff --to codex --dry-run
 ```
 
-**Sources** (capture *from*, via `--from`): `claude`, `codex` (default: `auto`).
+**Sources** (capture *from*, via `--from`): `claude`, `codex`, `gemini` (default: `auto`).
 **Targets** (resume *in*, via `--to`): `codex`, `gemini`, `claude`.
 (Gemini uses `gemini -i "<prompt>"`; verify the flag against your installed
 `@google/gemini-cli` version.)
@@ -102,6 +102,7 @@ This will:
 | `sources.py` | Registry of CLIs Lifeline can capture *from*; auto-detects the most recent session. |
 | `extractor.py` | Reads the latest Claude session JSONL → normalized handoff data + renderer. |
 | `codex_reader.py` | Reads the latest Codex `rollout-*.jsonl` session into the same normalized shape. |
+| `gemini_reader.py` | Reads the latest Gemini chat session (`~/.gemini/tmp/*/chats/`) into the same shape. |
 | `redact.py` | Scrubs secrets from text before it leaves the machine. |
 | `handoff.py` | Orchestrates select source → capture → redact → write → launch target CLI. |
 
@@ -123,9 +124,9 @@ The handoff ships session content to another AI provider, so:
 
 ### Known limitations (v0)
 
-- **Source coverage**: Lifeline can capture from **Claude Code** and **Codex**
-  today (both directions work, e.g. Codex→Claude). **Gemini** as a *source* is not
-  yet supported — it can only be a target for now (see roadmap).
+- **Source coverage**: Lifeline can capture from **Claude Code**, **Codex**, and
+  **Gemini** — all three work as both source and target (e.g. Codex→Claude,
+  Gemini→Claude). Other CLIs (Cursor, …) are not yet supported (see roadmap).
 - **Prompt injection**: session content is wrapped and labeled as historical
   context, but a determined injection inside the session could still influence the
   resuming CLI. Acceptable for v0 since the session is your own.
@@ -134,10 +135,9 @@ The handoff ships session content to another AI provider, so:
 
 ## Roadmap
 
-- **Any→any handoff.** ✅ The source is now pluggable via a `sources.py` registry
-  and a `--from` flag, with `claude` and `codex` readers and `claude` registered
-  as a launch target — so Codex→Claude works. **Remaining:** a **Gemini source
-  reader** (so Gemini can be captured *from*, not just handed off *to*), and
-  teaching `watch.py` each CLI's real limit-message string so auto-detection works
-  when wrapping a non-Claude CLI.
-- More targets: `cursor`, and others.
+- **Any→any handoff.** ✅ The source is pluggable via a `sources.py` registry and
+  a `--from` flag, with `claude`, `codex`, and `gemini` readers and all three
+  registered as launch targets — so any pair works (Codex→Claude, Gemini→Claude,
+  …). **Remaining:** teach `watch.py` each CLI's real limit-message string so
+  auto-detection works when wrapping a non-Claude CLI (today it knows Claude's).
+- More sources/targets: `cursor`, and others.

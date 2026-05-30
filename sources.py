@@ -15,6 +15,7 @@ from typing import Callable, Optional, Tuple
 
 import codex_reader
 import extractor
+import gemini_reader
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,14 @@ SOURCES = {
         root=codex_reader.CODEX_SESSIONS,
         find_latest=codex_reader.find_latest_session,
         parse=codex_reader.parse_session,
+    ),
+    "gemini": Source(
+        name="gemini",
+        display_name="Gemini",
+        assistant_label="Gemini",
+        root=gemini_reader.GEMINI_CHATS,
+        find_latest=gemini_reader.find_latest_session,
+        parse=gemini_reader.parse_session,
     ),
 }
 

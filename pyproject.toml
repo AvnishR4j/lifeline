@@ -34,4 +34,4 @@ lifeline = "lifeline_cli:main"
 [tool.setuptools]
 # Flat-layout single-file modules (no package dir). Listed explicitly so
 # setuptools doesn't try to auto-discover and choke on the multiple modules.
-py-modules = ["lifeline_cli", "watch", "handoff", "extractor", "redact", "sources", "codex_reader"]
+py-modules = ["lifeline_cli", "watch", "handoff", "extractor", "redact", "sources", "codex_reader", "gemini_reader"]
