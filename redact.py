@@ -35,7 +35,7 @@ _PATTERNS = [
     # .env-style assignments where the name hints at a secret. Captures the
     # name so we can keep it but mask the value.
     ("env-secret", re.compile(
-        r"(?im)^(\s*(?:export\s+)?[A-Z0-9_]*"
+        r"(?im)^(\s*(?:(?:export|set)\s+|\$env:)?[A-Z0-9_]*"
         r"(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD|CREDENTIAL|PRIVATE|API)[A-Z0-9_]*\s*[=:]\s*)"
         r"['\"]?[^\s'\"]{6,}['\"]?"
     )),

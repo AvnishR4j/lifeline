@@ -1,0 +1,3 @@
+{"sessionId":"gemini-fixture","projectHash":"sample","startTime":"2026-01-01T00:00:00.000Z"}
+{"$set":{"messages":[{"id":"ctx","type":"user","content":"<session_context>\nWorkspace Directories:\n- /tmp/lifeline-fixture"},{"id":"u1","type":"user","content":[{"text":"Debug the failing Gemini handoff."}]},{"id":"g1","type":"gemini","content":[{"text":"I found the failing parser edge case."}]}]}}
+{"id":"u2","type":"user","content":[{"text":"Finish the Gemini to Claude route."}]}

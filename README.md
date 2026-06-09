@@ -1,88 +1,252 @@
-
-
-https://github.com/user-attachments/assets/ad48a1b8-0ae7-4553-b266-0f4794500085
-
 # Lifeline
 
 > When your AI hits its limit, your work shouldn't.
 
-When an AI coding CLI (Claude Code, Codex, Gemini, …) hits its usage limit
-mid-task, you're forced to switch tools — and lose all context. Lifeline captures
-the state of the interrupted session and lets you resume in a different CLI with a
-single command, **zero re-explanation**.
+[![CI](https://github.com/AvnishR4j/lifeline/actions/workflows/ci.yml/badge.svg)](https://github.com/AvnishR4j/lifeline/actions/workflows/ci.yml)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-3776AB)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-It targets the *involuntary interruption* moment: not a manual switch you chose,
-but the forced one when the limit hits.
+**v0.2.0 public beta** — macOS is the primary supported platform. Native
+Windows, Linux, and WSL are beta-supported.
 
-_30-second demo above: Claude Code hits a usage limit, and Lifeline resumes the
-work in Codex with full context, zero re-explanation._
+Lifeline runs Claude Code, Codex, or Gemini under protection. When the active AI
+hits its usage limit, Lifeline captures that exact session and opens another AI
+with the useful context already loaded.
 
-## Requirements
-
-- **OS:** macOS or Linux. (Windows isn't supported yet — the auto-detect wrapper
-  uses Unix PTYs.)
-- **Python 3.8+** — no third-party packages, pure standard library.
-- **The source CLI:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-  (Lifeline reads its local session files under `~/.claude/projects/`).
-- **At least one target CLI, installed _and_ authenticated:**
-  - [Codex CLI](https://github.com/openai/codex) — `codex login`
-  - and/or [Gemini CLI](https://github.com/google-gemini/gemini-cli) — `gemini` (sign in once)
-
-  If your target isn't logged in, the handoff will launch it but you'll just land
-  on its login screen — so authenticate it first.
-
-## Quickstart
-
-```bash
-# Install (pure Python, no dependencies)
-pipx install git+https://github.com/AvnishR4j/lifeline.git
-# or: pip install git+https://github.com/AvnishR4j/lifeline.git
-
-# Manual: after Claude Code hits a limit, resume in Codex with full context
-lifeline handoff --to codex          # or --to gemini
-
-# Preview exactly what would be sent first (nothing is launched):
-lifeline handoff --to codex --dry-run
+```text
+lifeline codex
+      │
+      ├── Codex works normally
+      │
+      ├── Codex hits its usage limit
+      │
+      └── Lifeline opens Claude or Gemini with the same context
 ```
 
-For the **automatic** experience, start Claude Code through Lifeline instead of
-launching `claude` directly (see Usage below).
+No re-explanation. No guessing which session you meant. The original session
+stays available.
 
-> Prefer not to install? It's pure standard library — `git clone` and run the
-> scripts directly (`python3 handoff.py …` / `python3 watch.py …`).
+https://github.com/user-attachments/assets/ad48a1b8-0ae7-4553-b266-0f4794500085
 
-## Usage
+## The Important Rule
 
-### Automatic (recommended)
-
-Wrap your AI CLI. Lifeline watches its output and, the moment a usage limit
-appears, hands your context off to another CLI when the session ends — you don't
-have to remember to run anything. It recognizes the real limit messages of
-**Claude Code, Codex, and Gemini**, captures from whichever you wrapped, and
-defaults the target to a *different* CLI automatically.
+Start the AI from a **normal terminal** using Lifeline:
 
 ```bash
-lifeline watch                 # wraps `claude`, hands off to codex on a limit
-lifeline watch -- codex        # wrap Codex instead → hands off to claude
-lifeline watch -- gemini       # wrap Gemini → hands off to codex
-lifeline watch --to gemini     # pick the target explicitly
-lifeline watch -- claude --foo # pass extra flags through to the wrapped CLI
+lifeline codex
 ```
 
-### Manual
+Do not launch plain `codex` and expect Lifeline to detect its limit. Lifeline can
+only automatically watch sessions that were started with `lifeline claude`,
+`lifeline codex`, or `lifeline gemini`.
 
-Run the handoff yourself when a limit hits:
+Also, do not type `lifeline switch ...` into an AI chat prompt. Run manual switch
+commands from a **second normal terminal window or tab**.
+
+## Use Lifeline In Three Steps
+
+### 1. Start a protected session
 
 ```bash
-lifeline handoff --to codex     # or: --to gemini, --to claude
+lifeline codex
+```
 
-# By default Lifeline auto-detects the source CLI (whichever you used most
-# recently). Pin it explicitly with --from:
-lifeline handoff --from codex --to claude    # Codex hit its limit → resume in Claude
-lifeline handoff --from claude --to gemini   # Claude hit its limit → resume in Gemini
+Lifeline asks where it should hand the session over if Codex reaches its limit:
+
+```text
+Start Codex under Lifeline protection.
+When Codex hits its limit, switch to:
+  1. Claude (default)
+  2. Gemini
+Choose [1-2] (default 1):
+```
+
+### 2. Work normally
+
+Use Codex, Claude, or Gemini exactly as usual. Lifeline watches in the background
+and tracks the exact transcript belonging to this protected launch.
+
+You should see:
+
+```text
+⚡ Lifeline watching `codex` for usage limits (handoff target: claude)
+   Protection active.
+```
+
+If that message was not shown when the AI started, the session is not protected.
+
+### 3. Let Lifeline switch automatically
+
+When Lifeline sees a real usage-limit message, it captures the exact protected
+session and opens the selected target with its context.
+
+You can also switch before the limit. Open another normal terminal and run:
+
+```bash
+lifeline switch claude
+```
+
+## Install And Run On Your Computer
+
+### macOS
+
+Requirements: Python 3.9+, and at least two authenticated supported AI CLIs.
+
+```bash
+# Install Lifeline directly from GitHub
+python3 -m pip install --user --upgrade git+https://github.com/AvnishR4j/lifeline.git
+
+# Confirm your setup
+lifeline doctor
+
+# Start a protected AI session
+lifeline codex
+```
+
+If `lifeline` is not found after installation, add your user Python scripts
+directory to `PATH`, then restart Terminal:
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$HOME/Library/Python/3.9/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+On macOS, Lifeline opens the target in a new Terminal.app window while keeping
+the limited session open.
+
+### Windows
+
+Use PowerShell or cmd. Python 3.9+ is required. Windows Terminal is recommended.
+
+```powershell
+py -m pip install --upgrade git+https://github.com/AvnishR4j/lifeline.git
+lifeline doctor
+lifeline codex
+```
+
+Native Windows automatically installs `pywinpty` for interactive ConPTY support.
+For immediate handoffs, Lifeline tries Windows Terminal, PowerShell, then cmd.
+Git Bash is best-effort.
+
+### Linux
+
+```bash
+python3 -m pip install --user --upgrade git+https://github.com/AvnishR4j/lifeline.git
+lifeline doctor
+lifeline codex
+```
+
+On Linux, Lifeline watches the protected session and performs the handoff after
+the limited CLI exits.
+
+### WSL
+
+Install and run Lifeline inside WSL using the Linux commands:
+
+```bash
+python3 -m pip install --user --upgrade git+https://github.com/AvnishR4j/lifeline.git
+lifeline doctor
+lifeline codex
+```
+
+WSL uses the Unix PTY backend. Native Windows and WSL sessions remain separate.
+
+## Supported AI Tools
+
+Install and authenticate at least two:
+
+| CLI | Command | Login |
+|---|---|---|
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `claude` | Follow Claude Code sign-in |
+| [Codex CLI](https://github.com/openai/codex) | `codex` | `codex login` |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `gemini` | Run `gemini` and sign in |
+
+All six directions are supported:
+
+```text
+Claude → Codex     Claude → Gemini
+Codex  → Claude    Codex  → Gemini
+Gemini → Claude    Gemini → Codex
+```
+
+## Commands You Will Use
+
+```bash
+# Start protected sessions
+lifeline claude
+lifeline codex
+lifeline gemini
+
+# Choose the fallback without being asked
+lifeline codex --to gemini
+
+# Switch a currently protected session from another terminal
+lifeline switch claude
+
+# Check installation, backends, CLIs, and transcript parsing
+lifeline doctor
+
+# Preview a manual handoff without launching the target
+lifeline handoff --from codex --to gemini --dry-run
+```
+
+Other AI CLI arguments pass through:
+
+```bash
+lifeline claude --to gemini --model opus
+```
+
+The friendly launcher reserves `--to` for Lifeline. Put a literal underlying CLI
+`--to` option after `--`:
+
+```bash
+lifeline codex --to gemini -- --to some-codex-value
+```
+
+## Why Did Lifeline Not Switch?
+
+If the AI displays a usage limit but nothing happens:
+
+1. Check whether the session was started with `lifeline codex`, `lifeline
+   claude`, or `lifeline gemini`.
+2. Look for the `⚡ Lifeline watching ...` startup message.
+3. Run `lifeline doctor` from a normal terminal.
+4. If the session was started directly, use a manual handoff:
+
+```bash
+lifeline handoff --from codex --to claude
+```
+
+Manual `lifeline switch` only sees sessions started under Lifeline protection.
+
+## Advanced Usage
+
+Use the full commands when you need an explicit source, target, dry run, or
+confirmation behavior:
+
+```bash
+lifeline watch --to gemini -- claude
+lifeline watch --yes --to codex -- claude
+lifeline watch --new-terminal --to codex -- claude
+lifeline handoff --from codex --to gemini --dry-run
+lifeline handoff --from codex --to gemini --session-file ~/.codex/sessions/...jsonl
+```
+
+Explicit `--from` is the most reliable bidirectional manual form:
+
+```bash
+lifeline handoff --from claude --to codex
+lifeline handoff --from claude --to gemini
+lifeline handoff --from codex --to claude
+lifeline handoff --from codex --to gemini
+lifeline handoff --from gemini --to claude
+lifeline handoff --from gemini --to codex
+
+# Auto-detect is convenient, but explicit --from avoids ambiguity:
+lifeline handoff --to codex
 
 # Preview what would be sent without launching anything:
-lifeline handoff --to codex --dry-run
+lifeline handoff --from codex --to gemini --dry-run
 ```
 
 **Sources** (capture *from*, via `--from`): `claude`, `codex`, `gemini` (default: `auto`).
@@ -91,17 +255,31 @@ lifeline handoff --to codex --dry-run
 `@google/gemini-cli` version.)
 
 This will:
-1. Find your most recent Claude Code session (`~/.claude/projects/`).
+1. Resolve the selected source CLI session (Claude Code, Codex, or Gemini).
 2. Extract the task, recent conversation, last prompt, and uncommitted `git diff`.
 3. **Redact secrets** (see below) and warn you about what was scrubbed.
-4. Write a secret-safe handoff file to `.lifeline/` (gitignored, `0600`).
+4. Write a secret-safe handoff file to `~/.lifeline/handoffs/`.
 5. Launch the target CLI seeded with that context.
+
+### Diagnostics
+
+```bash
+lifeline doctor
+```
+
+`doctor` checks which supported CLIs are on `PATH`, whether each session root
+exists, whether the latest session for each source can be parsed, and prints the
+supported source→target matrix. Use it first if a specific direction such as
+Codex→Claude or Gemini→Codex is not working.
 
 ## How it works
 
 | File | Role |
 |------|------|
 | `watch.py` | Wraps an AI CLI in a PTY, watches output for a usage limit, auto-fires the handoff. |
+| `terminal_backends.py` | Runs protected sessions through Unix PTY or native Windows ConPTY. |
+| `terminal_launchers.py` | Opens immediate handoffs through Terminal.app or Windows Terminal/PowerShell/cmd. |
+| `session_tracker.py` | Pins protected launches to exact transcripts and maintains the live-session registry used by `lifeline switch`. |
 | `sources.py` | Registry of CLIs Lifeline can capture *from*; auto-detects the most recent session. |
 | `extractor.py` | Reads the latest Claude session JSONL → normalized handoff data + renderer. |
 | `codex_reader.py` | Reads the latest Codex `rollout-*.jsonl` session into the same normalized shape. |
@@ -118,23 +296,50 @@ The handoff ships session content to another AI provider, so:
   replaces them with `[REDACTED:<kind>]`. It runs locally (regex only, no network,
   no cost) and prints a summary of what was redacted before launch.
 - **No command injection** — the target CLI is launched with an argv list
-  (`subprocess.run([...])`), never a shell string. The full handoff goes into a
-  file, not a CLI argument (avoids `ARG_MAX` and leaking into `ps`).
-- **Restrictive perms** — handoff files are written `0600` in a `0700` directory,
-  and `.lifeline/` is gitignored so handoffs are never committed.
-- **Path safety** — `--project-dir` is validated to live under
-  `~/.claude/projects`.
+  (`subprocess.run([...])`), never a shell string. The redacted handoff is passed
+  inline so every supported target can receive it despite workspace/gitignore
+  restrictions.
+- **Private local storage** — handoff files live under
+  `~/.lifeline/handoffs/`. Unix uses `0600` files in `0700` directories;
+  Windows relies on the current user's profile-directory access controls.
+- **Path safety** — `--project-dir` is validated to live under the selected
+  source CLI's session root. Exact `--session-file` paths receive the same
+  validation.
+- **Metadata-only active registry** — live protected sessions are recorded under
+  `~/.lifeline/active/` using `0700`/`0600` permissions. Records contain source,
+  target, working directory, PID, session ID/path, and status; they do not copy
+  transcript content.
 
 ### Known limitations (v0)
 
+- **Beta support**: native Windows, Linux, and WSL are public-beta platforms.
+  PowerShell and cmd are tested on Windows; Git Bash is best-effort.
 - **Source coverage**: Lifeline can capture from **Claude Code**, **Codex**, and
   **Gemini** — all three work as both source and target (e.g. Codex→Claude,
   Gemini→Claude). Other CLIs (Cursor, …) are not yet supported (see roadmap).
 - **Prompt injection**: session content is wrapped and labeled as historical
   context, but a determined injection inside the session could still influence the
   resuming CLI. Acceptable for v0 since the session is your own.
+- The redacted inline handoff may be temporarily visible to local process-list
+  inspection tools while the target CLI starts.
+- Manual `lifeline switch` only targets live sessions launched under Lifeline.
+  Advanced `lifeline handoff` retains latest-session discovery for unprotected
+  sessions, so use explicit `--from` and `--session-file` when exact selection is
+  required there.
 - Redaction is pattern-based; novel secret formats may slip through. Review the
   `--dry-run` output for anything sensitive before a real handoff.
+
+## Troubleshooting
+
+Run `lifeline doctor` first. It reports the selected terminal backend, target CLI
+paths, session roots, parser health, and native Windows `pywinpty` availability.
+
+On Windows, reinstall with `py -m pip install --upgrade --force-reinstall
+lifeline` if ConPTY support is missing. If immediate handoff cannot open a new
+terminal, the generated handoff remains under `~/.lifeline/handoffs/` and the
+error includes the next action.
+
+Uninstall with `pipx uninstall lifeline` or `py -m pip uninstall lifeline`.
 
 ## Roadmap
 

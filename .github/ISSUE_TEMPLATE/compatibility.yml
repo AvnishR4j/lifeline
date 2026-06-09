@@ -1,0 +1,34 @@
+name: CLI compatibility report
+description: Report a Claude, Codex, or Gemini transcript/launch compatibility issue.
+title: "[Compatibility]: "
+labels: ["compatibility"]
+body:
+  - type: dropdown
+    attributes:
+      label: Source CLI
+      options: [Claude Code, Codex, Gemini]
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Target CLI
+      options: [Claude Code, Codex, Gemini]
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Source and target versions
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Environment
+      options: [macOS, Windows PowerShell, Windows cmd, Linux, WSL, Git Bash]
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Sanitized details
+      description: Never attach raw transcripts or secrets.
+    validations:
+      required: true

@@ -1,37 +1,3 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=58"]
 build-backend = "setuptools.build_meta"
-
-[project]
-name = "lifeline"
-version = "0.1.0"
-description = "When your AI hits its limit, your work shouldn't — resume your AI CLI session in another tool with full context."
-readme = "README.md"
-requires-python = ">=3.8"
-license = { text = "MIT" }
-authors = [{ name = "Avnish Raj" }]
-keywords = ["ai", "cli", "context", "handoff", "claude", "codex", "gemini"]
-classifiers = [
-  "Environment :: Console",
-  "License :: OSI Approved :: MIT License",
-  "Programming Language :: Python :: 3",
-  "Operating System :: MacOS",
-  "Operating System :: POSIX :: Linux",
-  "Topic :: Software Development :: Build Tools",
-]
-
-# Pure standard library — no runtime dependencies on purpose.
-dependencies = []
-
-[project.urls]
-Homepage = "https://github.com/AvnishR4j/lifeline"
-Repository = "https://github.com/AvnishR4j/lifeline"
-Issues = "https://github.com/AvnishR4j/lifeline/issues"
-
-[project.scripts]
-lifeline = "lifeline_cli:main"
-
-[tool.setuptools]
-# Flat-layout single-file modules (no package dir). Listed explicitly so
-# setuptools doesn't try to auto-discover and choke on the multiple modules.
-py-modules = ["lifeline_cli", "watch", "handoff", "extractor", "redact", "sources", "codex_reader", "gemini_reader"]

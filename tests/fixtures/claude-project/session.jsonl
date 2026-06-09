@@ -1,0 +1,6 @@
+{"type":"ai-title","aiTitle":"Fix payment retry flow"}
+{"type":"system","cwd":"/tmp/lifeline-fixture","gitBranch":"main"}
+{"type":"user","isMeta":false,"message":{"content":"Please fix the retry bug."}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"I found the retry condition."},{"type":"tool_use","name":"Read","input":{"file_path":"app.py"}}]}}
+{"type":"last-prompt","lastPrompt":"Please add a regression test."}
+{"type":"user","isMeta":false,"message":{"content":"Please add a regression test."}}

@@ -2,11 +2,10 @@
 """
 Lifeline — auto-detection wrapper.
 
-Runs an AI CLI (default: `claude`) inside a pseudo-terminal (PTY) so it stays
-fully interactive, while Lifeline watches its output for a usage-limit message.
-When the limit is detected, Lifeline fires the handoff automatically once the
-wrapped session ends — so you resume in another CLI with full context, without
-having to remember to run anything.
+Runs an AI CLI (default: `claude`) inside the platform's interactive terminal
+backend while Lifeline watches its output for a usage-limit message. macOS and
+native Windows can immediately open the target in a new terminal while leaving
+the limited session open. Linux and WSL hand off after the wrapped session ends.
 
     python3 watch.py                 # wrap `claude`, hand off to codex on limit
     python3 watch.py --to codex      # explicit target
@@ -15,19 +14,19 @@ having to remember to run anything.
 """
 
 import argparse
+import ntpath
 import os
-import pty
 import re
-import select
 import shutil
 import subprocess
 import sys
-import termios
-import tty
 from pathlib import Path
 
 import handoff  # for SUPPORTED_TARGETS so --to is validated up front
+import session_tracker
 import sources  # to map the wrapped CLI to a capture source
+import terminal_backends
+import terminal_launchers
 
 HERE = Path(__file__).resolve().parent
 
@@ -105,69 +104,35 @@ class LimitWatcher:
         return any(p.search(text) for p in _NON_LIMIT_PATTERNS)
 
 
-def run_wrapped(command, watcher: LimitWatcher) -> int:
-    """Run `command` inside a PTY, mirroring output while feeding the watcher.
-    Returns the child's exit status.
-
-    We implement the relay manually (rather than pty.spawn) so we can:
-      - feed every output chunk to the watcher, and
-      - only forward stdin when stdin is a real TTY. pty.spawn busy-hangs when
-        stdin is /dev/null or a pipe (non-interactive shells, CI, tests)."""
-    pid, master_fd = pty.fork()
-    if pid == 0:
-        # Child: become the wrapped CLI.
-        os.execvp(command[0], command)
-        os._exit(127)  # only reached if exec fails
-
-    stdin_fd = sys.stdin.fileno()
-    stdin_is_tty = sys.stdin.isatty()
-    saved = None
-    if stdin_is_tty:
-        # Raw mode so keystrokes pass straight through to the child's PTY.
-        saved = termios.tcgetattr(stdin_fd)
-        tty.setraw(stdin_fd)
-
-    try:
-        while True:
-            watch_fds = [master_fd] + ([stdin_fd] if stdin_is_tty else [])
-            try:
-                rlist, _, _ = select.select(watch_fds, [], [])
-            except (OSError, ValueError):
-                break
-
-            if master_fd in rlist:
-                try:
-                    data = os.read(master_fd, 1024)
-                except OSError:
-                    data = b""
-                if not data:
-                    break  # child closed the PTY -> it exited
-                watcher.feed(data)
-                os.write(sys.stdout.fileno(), data)
-
-            if stdin_is_tty and stdin_fd in rlist:
-                data = os.read(stdin_fd, 1024)
-                if data:
-                    os.write(master_fd, data)
-    finally:
-        if saved is not None:
-            termios.tcsetattr(stdin_fd, termios.TCSAFLUSH, saved)
-        os.close(master_fd)
-
-    _, status = os.waitpid(pid, 0)
-    if os.WIFEXITED(status):
-        return os.WEXITSTATUS(status)
-    if os.WIFSIGNALED(status):
-        return 128 + os.WTERMSIG(status)
-    return status
+def feed_and_notify(watcher: LimitWatcher, data: bytes, on_detect=None):
+    """Feed output and invoke a callback exactly once on first detection."""
+    was_detected = watcher.detected
+    watcher.feed(data)
+    if watcher.detected and not was_detected and on_detect is not None:
+        on_detect(watcher)
 
 
-def fire_handoff(target: str, dry_run: bool, from_cli: str = "auto"):
+def sync_window_size(master_fd: int, source_fd: int) -> bool:
+    """Copy the real terminal dimensions to the wrapped CLI's PTY."""
+    return terminal_backends.sync_window_size(master_fd, source_fd)
+
+
+def run_wrapped(command, watcher: LimitWatcher, on_detect=None, on_activity=None) -> int:
+    """Run the command through the native interactive-terminal backend."""
+    return terminal_backends.run_wrapped(command, watcher, on_detect, on_activity)
+
+
+def fire_handoff(target: str, dry_run: bool, from_cli: str = "auto",
+                 new_terminal: bool = False, session_file=None):
     """Reuse handoff.py rather than duplicating capture/redact/launch logic."""
     argv = [sys.executable, str(HERE / "handoff.py"),
             "--to", target, "--from", from_cli]
     if dry_run:
         argv.append("--dry-run")
+    if new_terminal:
+        argv.append("--new-terminal")
+    if session_file is not None:
+        argv.extend(["--session-file", str(session_file)])
     return subprocess.run(argv).returncode
 
 
@@ -188,6 +153,22 @@ def _confirm(question: str, default_yes: bool, auto_yes: bool) -> bool:
     return answer in ("y", "yes")
 
 
+def source_for_command(command_name: str) -> str:
+    """Map a wrapped executable name to a Lifeline source key."""
+    name = ntpath.basename(command_name)
+    path = Path(name)
+    from_cli = path.stem if path.suffix.lower() in (".cmd", ".exe", ".bat") else path.name
+    return from_cli if from_cli in sources.SUPPORTED_SOURCES else "auto"
+
+
+def default_target_for_source(from_cli: str) -> str:
+    """Deterministic default target for demos, docs, and tests."""
+    for target in ("codex", "claude", "gemini"):
+        if target != from_cli:
+            return target
+    return "codex"
+
+
 def selftest():
     """Verify detection on representative strings without running any CLI."""
     cases = [
@@ -201,6 +182,7 @@ def selftest():
         ("approaching your usage limit", True),
         # --- real Codex usage-limit signals (should DETECT) ---
         ("You've hit your usage limit for GPT-5.", True),
+        ("You've hit your usage limit. Upgrade to Pro or try again at 7:26 AM.", True),
         ("stream error: 429 Too Many Requests", True),
         # --- real Gemini usage-limit signals (should DETECT) ---
         ("Usage limit reached for gemini-2.5-pro", True),
@@ -244,6 +226,9 @@ def main():
                         help="On detection, build the handoff but don't launch the target CLI.")
     parser.add_argument("-y", "--yes", action="store_true",
                         help="Skip the confirmation prompt and hand off automatically.")
+    parser.add_argument("--new-terminal", action="store_true",
+                        help="Immediately open the target in a new terminal when "
+                             "supported and leave the limited session open.")
     parser.add_argument("--selftest", action="store_true",
                         help="Run detection self-tests and exit.")
     parser.add_argument("command", nargs=argparse.REMAINDER,
@@ -265,24 +250,98 @@ def main():
 
     # Map the wrapped CLI to a capture source so the handoff reads the RIGHT
     # session (not just whatever was most recent). Unknown CLIs fall back to auto.
-    from_cli = Path(command[0]).name
-    if from_cli not in sources.SUPPORTED_SOURCES:
-        from_cli = "auto"
+    from_cli = source_for_command(command[0])
 
     # Default the target to the first known CLI that isn't the source, so wrapping
     # e.g. codex doesn't try to hand off codex→codex.
     if args.to is None:
-        args.to = next(t for t in ("codex", "claude", "gemini") if t != from_cli)
+        args.to = default_target_for_source(from_cli)
+    elif args.to == from_cli:
+        sys.exit(f"Source and target are both '{from_cli}'. Pick a different --to.")
+    if shutil.which(args.to) is None:
+        sys.exit(
+            f"Target CLI '{args.to}' not found on PATH. Install it or choose "
+            "a different --to."
+        )
+
+    if args.new_terminal and not terminal_launchers.supports_new_terminal():
+        print("⚡ Lifeline: immediate new-terminal handoff is unavailable here; falling back "
+              "to handoff after the wrapped CLI exits.", file=sys.stderr)
+        args.new_terminal = False
+
+    command, _ = session_tracker.prepare_command(from_cli, command)
+    tracker = None
+    if from_cli in sources.SUPPORTED_SOURCES:
+        tracker = session_tracker.SessionTracker(
+            from_cli, args.to, command,
+            session_tracker.command_cwd(from_cli, command, Path.cwd()),
+            session_tracker.ActiveRegistry(),
+        )
 
     watcher = LimitWatcher()
+    immediate = {"attempted": False, "success": False}
+
+    def _open_new_terminal(detected_watcher):
+        immediate["attempted"] = True
+        print("\n" + "=" * 60, file=sys.stderr)
+        print(f"⚡ Lifeline: usage limit detected "
+              f"(matched {detected_watcher.matched_phrase!r}).", file=sys.stderr)
+        print(f"   Opening {args.to} in a new terminal; "
+              f"`{command[0]}` will remain open here.", file=sys.stderr)
+        print("=" * 60 + "\n", file=sys.stderr)
+        try:
+            # stdin is still in raw mode inside the PTY callback. If resolution
+            # is ambiguous, retry after the wrapped CLI exits so the user can
+            # choose from a normal terminal prompt.
+            session_file = tracker.require_session(prompt=False) if tracker else None
+            immediate["success"] = (
+                fire_handoff(
+                    args.to, args.dry_run, from_cli, new_terminal=True,
+                    session_file=session_file,
+                ) == 0
+            )
+        except (RuntimeError, session_tracker.AmbiguousSessionError) as e:
+            print(f"⚡ Lifeline: {e}", file=sys.stderr)
+            immediate["success"] = False
+        if not immediate["success"]:
+            print("⚡ Lifeline: new-terminal handoff failed. It will retry after "
+                  "this session exits.", file=sys.stderr)
+
     print(f"⚡ Lifeline watching `{command[0]}` for usage limits "
           f"(handoff target: {args.to})\n", file=sys.stderr)
+    print(f"   Protection active. If `{command[0]}` hits its usage limit, "
+          f"Lifeline will hand this exact session to {args.to}.", file=sys.stderr)
+    print(f"   To switch manually, open another terminal and run "
+          f"`lifeline switch {args.to}`. Do not type it into the AI prompt.\n",
+          file=sys.stderr)
 
-    exit_code = run_wrapped(command, watcher)
+    try:
+        exit_code = run_wrapped(
+            command,
+            watcher,
+            on_detect=_open_new_terminal if args.new_terminal else None,
+            on_activity=tracker.observe if tracker else None,
+        )
+    finally:
+        if tracker:
+            tracker.observe(force=True)
 
     if not watcher.detected:
         print(f"\n⚡ Lifeline: `{command[0]}` exited without hitting a limit. "
               f"No handoff needed.", file=sys.stderr)
+        if tracker:
+            tracker.close()
+        sys.exit(exit_code)
+
+    if immediate["success"]:
+        if args.dry_run:
+            print("\n⚡ Lifeline: immediate handoff dry run completed. "
+                  "No second handoff needed.", file=sys.stderr)
+        else:
+            print(f"\n⚡ Lifeline: {args.to} was already opened in a new terminal. "
+                  f"No second handoff needed.", file=sys.stderr)
+        if tracker:
+            tracker.close()
         sys.exit(exit_code)
 
     # A usage limit was seen during the session. Make it obvious what happened,
@@ -299,10 +358,20 @@ def main():
                     auto_yes=args.yes):
         print(f"\n   Skipped. Run `lifeline handoff --to {args.to}` later "
               f"to resume whenever you want.", file=sys.stderr)
+        if tracker:
+            tracker.close()
         sys.exit(exit_code)
 
     print(f"\n   Capturing context and handing off to {args.to}…\n", file=sys.stderr)
-    sys.exit(fire_handoff(args.to, args.dry_run, from_cli))
+    try:
+        session_file = tracker.require_session() if tracker else None
+        result = fire_handoff(args.to, args.dry_run, from_cli, session_file=session_file)
+    except (RuntimeError, session_tracker.AmbiguousSessionError) as e:
+        sys.exit(f"Exact session selection failed: {e}")
+    finally:
+        if tracker:
+            tracker.close()
+    sys.exit(result)
 
 
 if __name__ == "__main__":
