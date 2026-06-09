@@ -209,8 +209,8 @@ def selftest():
         status = "PASS" if w.detected == expected else "FAIL"
         if w.detected != expected:
             ok = False
-        print(f"  [{status}] {result} <- {text!r}"
-              + (f"  (matched {w.matched_phrase!r})" if w.detected else ""))
+        print(f"  [{status}] {result} <- {ascii(text)}"
+              + (f"  (matched {ascii(w.matched_phrase)})" if w.detected else ""))
     print("selftest:", "ALL PASS" if ok else "FAILURES")
     return 0 if ok else 1
 

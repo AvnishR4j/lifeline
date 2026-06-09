@@ -283,6 +283,14 @@ class WatchBehaviorTests(unittest.TestCase):
         )
         self.assertTrue(watcher.detected)
 
+    def test_limit_selftest_prints_on_legacy_windows_console_encoding(self):
+        raw = io.BytesIO()
+        output = io.TextIOWrapper(raw, encoding="cp1252")
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(watch.selftest(), 0)
+        output.flush()
+        self.assertIn(b"selftest: ALL PASS", raw.getvalue())
+
     def test_sync_window_size_copies_terminal_dimensions(self):
         winsize = b"\x18\x00\x50\x00\x00\x00\x00\x00"
         fake_fcntl = mock.Mock()
