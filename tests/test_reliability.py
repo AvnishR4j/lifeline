@@ -135,7 +135,8 @@ class HandoffMatrixTests(unittest.TestCase):
         argv = run.call_args.args[0]
         self.assertEqual(argv[:2], ["osascript", "-e"])
         self.assertIn("--resume-file", argv[2])
-        self.assertIn(str(handoff_path.resolve()), argv[2])
+        escaped_path = str(handoff_path.resolve()).replace("\\", "\\\\")
+        self.assertIn(escaped_path, argv[2])
         self.assertNotIn("private redacted context", argv[2])
 
     def test_resume_file_must_live_inside_handoff_directory(self):
@@ -261,7 +262,9 @@ class WatchBehaviorTests(unittest.TestCase):
             )
 
         argv = run.call_args.args[0]
-        self.assertEqual(argv[-2:], ["--session-file", "/tmp/exact.jsonl"])
+        self.assertEqual(
+            argv[-2:], ["--session-file", str(Path("/tmp/exact.jsonl"))]
+        )
 
     def test_detection_callback_fires_once(self):
         watcher = watch.LimitWatcher()
