@@ -135,7 +135,7 @@ class HandoffMatrixTests(unittest.TestCase):
         argv = run.call_args.args[0]
         self.assertEqual(argv[:2], ["osascript", "-e"])
         self.assertIn("--resume-file", argv[2])
-        self.assertIn(str(handoff_path), argv[2])
+        self.assertIn(str(handoff_path.resolve()), argv[2])
         self.assertNotIn("private redacted context", argv[2])
 
     def test_resume_file_must_live_inside_handoff_directory(self):
@@ -675,7 +675,10 @@ class DoctorTests(unittest.TestCase):
             source_rows = doctor.check_sources()
 
         self.assertTrue(all(not ok for ok, _ in cli_rows))
-        self.assertEqual(source_rows, [(False, "WARN  Gemini session root missing: /definitely/missing/lifeline-source")])
+        self.assertEqual(
+            source_rows,
+            [(False, f"WARN  Gemini session root missing: {missing_source.root}")],
+        )
 
 
 class RedactionTests(unittest.TestCase):
@@ -872,8 +875,18 @@ class SessionTrackingTests(unittest.TestCase):
             self.assertEqual(records[0]["source"], "codex")
             self.assertTrue(live.exists())
             self.assertFalse(stale.exists())
-            self.assertEqual(live.stat().st_mode & 0o777, 0o600)
-            self.assertEqual(registry.root.stat().st_mode & 0o777, 0o700)
+            if os.name != "nt":
+                self.assertEqual(live.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(registry.root.stat().st_mode & 0o777, 0o700)
+
+    def test_windows_pid_liveness_uses_process_handle_without_signals(self):
+        with mock.patch("session_tracker.os.name", "nt"), \
+             mock.patch("session_tracker._windows_pid_alive", return_value=True) as check, \
+             mock.patch("session_tracker.os.kill") as kill:
+            self.assertTrue(session_tracker.ActiveRegistry._pid_alive(os.getpid()))
+
+        kill.assert_not_called()
+        check.assert_called_once_with(os.getpid())
 
     def test_active_registry_recovers_pinned_session_before_watcher_observes_output(self):
         with tempfile.TemporaryDirectory() as tmp:

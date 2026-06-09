@@ -14,6 +14,26 @@ import sources
 ACTIVE_DIR = Path.home() / ".lifeline" / "active"
 
 
+def _windows_pid_alive(pid: int) -> bool:
+    """Check a Windows process without sending it a console control signal."""
+    import ctypes
+    from ctypes import wintypes
+
+    process_query_limited_information = 0x1000
+    error_access_denied = 5
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
+    if handle:
+        kernel32.CloseHandle(handle)
+        return True
+    return ctypes.get_last_error() == error_access_denied
+
+
 class AmbiguousSessionError(RuntimeError):
     def __init__(self, candidates: Iterable[Path]):
         self.candidates = list(candidates)
@@ -317,11 +337,19 @@ class ActiveRegistry:
     @staticmethod
     def _pid_alive(pid) -> bool:
         try:
-            os.kill(int(pid), 0)
+            pid = int(pid)
+        except (TypeError, ValueError):
+            return False
+        if pid <= 0:
+            return False
+        if os.name == "nt":
+            return _windows_pid_alive(pid)
+        try:
+            os.kill(pid, 0)
             return True
         except PermissionError:
             return True
-        except (OSError, TypeError, ValueError):
+        except OSError:
             return False
 
     def live(self) -> List[dict]:
