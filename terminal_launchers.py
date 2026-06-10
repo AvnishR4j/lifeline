@@ -24,7 +24,11 @@ def supports_new_terminal() -> bool:
     return sys.platform == "darwin" or os.name == "nt"
 
 
-def launch_new_terminal(target: str, handoff_path: Path, handoff_script: Path):
+def launch_new_terminal(
+    target: str, handoff_path: Path, handoff_script: Path,
+    fallback=None, working_dir=None,
+):
+    working_dir = Path(working_dir or Path.cwd()).resolve()
     launcher = [
         sys.executable,
         str(handoff_script.resolve()),
@@ -33,17 +37,21 @@ def launch_new_terminal(target: str, handoff_path: Path, handoff_script: Path):
         "--to",
         target,
     ]
+    if fallback:
+        launcher.extend(["--fallback", fallback])
+    launcher.extend(["--working-dir", str(working_dir)])
     if sys.platform == "darwin":
-        return _launch_macos(launcher)
+        return _launch_macos(launcher, working_dir)
     if os.name == "nt":
-        return _launch_windows(launcher)
+        return _launch_windows(launcher, working_dir)
     raise OSError("Immediate new-terminal handoff is unavailable on this platform.")
 
 
-def _launch_macos(launcher):
+def _launch_macos(launcher, working_dir=None):
     if shutil.which("osascript") is None:
         raise OSError("Could not find osascript, required to open Terminal.app.")
-    command = f"cd {shlex.quote(str(Path.cwd()))} && {shlex.join(launcher)}"
+    cwd = Path(working_dir or Path.cwd()).resolve()
+    command = f"cd {shlex.quote(str(cwd))} && {shlex.join(launcher)}"
     script = (
         'tell application "Terminal"\n'
         "activate\n"
@@ -56,8 +64,8 @@ def _launch_macos(launcher):
     _raise_on_failure(result, "Terminal.app")
 
 
-def _launch_windows(launcher):
-    cwd = str(Path.cwd())
+def _launch_windows(launcher, working_dir=None):
+    cwd = str(Path(working_dir or Path.cwd()).resolve())
     attempts = []
     wt = shutil.which("wt.exe")
     if wt:

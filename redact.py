@@ -30,6 +30,19 @@ _PATTERNS = [
     ("google-key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
     # Slack tokens.
     ("slack-token", re.compile(r"\bxox[baprs]-[0-9A-Za-z-]{10,}\b")),
+    # Common service-token formats.
+    ("service-token", re.compile(
+        r"\b(?:npm_[A-Za-z0-9]{20,}|glpat-[A-Za-z0-9_-]{20,}|"
+        r"hf_[A-Za-z0-9]{20,}|(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,})\b"
+    )),
+    # Standalone JSON Web Tokens, even when not prefixed by "Bearer".
+    ("jwt", re.compile(
+        r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b"
+    )),
+    # Credentials embedded in URLs such as postgres://user:password@host/db.
+    ("url-credentials", re.compile(
+        r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@"
+    )),
     # Bearer tokens in headers/text.
     ("bearer-token", re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{16,}")),
     # .env-style assignments where the name hints at a secret. Captures the
@@ -58,6 +71,8 @@ def redact(text: str):
             if keep_prefix:
                 # env-secret: preserve "NAME=" / "export NAME=" prefix, mask value.
                 return f"{match.group(1)}[REDACTED:{kind}]"
+            if kind == "url-credentials":
+                return f"{match.group(1)}[REDACTED:{kind}]@"
             return f"[REDACTED:{kind}]"
         return _sub
 

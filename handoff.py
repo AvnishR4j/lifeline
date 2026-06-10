@@ -89,6 +89,10 @@ def build_target_argv(target: str, handoff_text: str):
 def write_handoff_file(text: str) -> Path:
     """Write the handoff to a gitignored file with owner-only (0600) perms."""
     HANDOFF_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    try:
+        HANDOFF_DIR.chmod(0o700)
+    except OSError:
+        pass
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     path = HANDOFF_DIR / f"handoff-{timestamp}.md"
     # Exclusive creation prevents simultaneous handoffs from overwriting each
@@ -131,11 +135,56 @@ def _validated_session_file(path_value: str, source) -> Path:
     return path
 
 
-def launch_target(target: str, handoff_text: str):
-    """Launch a target in the current terminal."""
+def _working_directory(value=None) -> Path:
+    """Use the captured project directory when it still exists."""
+    if value:
+        path = Path(value).expanduser().resolve()
+        if path.is_dir():
+            return path
+        print(
+            f"⚠  Captured working directory is unavailable: {path}. "
+            f"Using {Path.cwd()}.",
+            file=sys.stderr,
+        )
+    return Path.cwd().resolve()
+
+
+def _protected_target_argv(target: str, handoff_text: str, fallback: str):
+    return [
+        sys.executable,
+        str(Path(__file__).resolve().with_name("watch.py")),
+        "--yes",
+        "--new-terminal",
+        "--to",
+        fallback,
+        "--",
+        *build_target_argv(target, handoff_text),
+    ]
+
+
+def launch_target(target: str, handoff_text: str, fallback=None, working_dir=None):
+    """Launch a target in the current terminal, protected when possible."""
     if shutil.which(target) is None:
         raise OSError(f"Target CLI '{target}' not found on PATH. Install it or check your PATH.")
-    subprocess.run(command_utils.resolved_argv(build_target_argv(target, handoff_text)), check=False)
+    argv = build_target_argv(target, handoff_text)
+    if fallback and fallback != target and shutil.which(fallback):
+        argv = _protected_target_argv(target, handoff_text, fallback)
+        print(
+            f"⚡ Lifeline protection continues: if {target} hits its limit, "
+            f"switch back to {fallback}.",
+            file=sys.stderr,
+        )
+    elif fallback:
+        print(
+            f"⚠  Fallback CLI '{fallback}' is unavailable; launching {target} "
+            "without continued Lifeline protection.",
+            file=sys.stderr,
+        )
+    return subprocess.run(
+        command_utils.resolved_argv(argv),
+        cwd=str(_working_directory(working_dir)),
+        check=False,
+    ).returncode
 
 
 def validate_session_data(data: dict, source_name: str, session: Path):
@@ -148,9 +197,17 @@ def validate_session_data(data: dict, source_name: str, session: Path):
     )
 
 
-def launch_target_in_new_terminal(target: str, handoff_path: Path):
+def launch_target_in_new_terminal(
+    target: str, handoff_path: Path, fallback=None, working_dir=None
+):
     """Open the target through the platform's preferred terminal launcher."""
-    terminal_launchers.launch_new_terminal(target, handoff_path, Path(__file__))
+    terminal_launchers.launch_new_terminal(
+        target,
+        handoff_path,
+        Path(__file__),
+        fallback=fallback,
+        working_dir=_working_directory(working_dir),
+    )
 
 
 def main():
@@ -186,6 +243,8 @@ def main():
         help="Launch the target in a new terminal and leave this session open.",
     )
     parser.add_argument("--resume-file", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--fallback", choices=sorted(SUPPORTED_TARGETS), help=argparse.SUPPRESS)
+    parser.add_argument("--working-dir", default=None, help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     # Internal entrypoint used by a newly opened platform terminal. The file is
@@ -193,7 +252,12 @@ def main():
     if args.resume_file:
         try:
             handoff_path = _validated_handoff_file(args.resume_file)
-            launch_target(args.to, handoff_path.read_text())
+            launch_target(
+                args.to,
+                handoff_path.read_text(),
+                fallback=args.fallback,
+                working_dir=args.working_dir,
+            )
         except (OSError, ValueError) as e:
             sys.exit(str(e))
         return
@@ -251,6 +315,7 @@ def main():
 
     # 2. Scrub secrets before anything leaves the machine.
     clean_handoff, findings = redact.redact(raw_handoff)
+    working_dir = _working_directory(data.get("cwd"))
 
     # 3. Warn the user about redactions.
     summary = redact.summarize(findings)
@@ -276,11 +341,21 @@ def main():
 
     try:
         if args.new_terminal:
-            launch_target_in_new_terminal(args.to, handoff_path)
+            launch_target_in_new_terminal(
+                args.to,
+                handoff_path,
+                fallback=source.name,
+                working_dir=working_dir,
+            )
             print(f"→  Opened {args.to} in a new terminal.\n", file=sys.stderr)
         else:
             print(f"→  Launching {args.to} …\n", file=sys.stderr)
-            launch_target(args.to, clean_handoff)
+            launch_target(
+                args.to,
+                clean_handoff,
+                fallback=source.name,
+                working_dir=working_dir,
+            )
     except OSError as e:
         sys.exit(f"Failed to launch {args.to}: {e}")
 

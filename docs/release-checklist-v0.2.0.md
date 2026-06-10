@@ -20,6 +20,9 @@ Validate on macOS and native Windows:
 
 Validate representative protected launches and handoffs on Linux and WSL.
 
+- [ ] Every resumed target remains Lifeline-protected.
+- [ ] Every resumed target starts in the captured project directory.
+
 ## Windows
 
 - [ ] PowerShell and cmd protected launches work.

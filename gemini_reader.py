@@ -71,8 +71,11 @@ def _iter_messages(entries):
         if not isinstance(e, dict):
             continue
         if isinstance(e.get("$set"), dict):
-            for m in e["$set"].get("messages", []):
-                yield m
+            messages = e["$set"].get("messages", [])
+            if isinstance(messages, list):
+                for m in messages:
+                    if isinstance(m, dict):
+                        yield m
         elif e.get("type") and "content" in e:
             yield e
 

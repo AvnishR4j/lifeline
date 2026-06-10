@@ -2,6 +2,7 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -54,6 +55,19 @@ class ParserFixtureTests(unittest.TestCase):
         self.assertEqual(data["cwd"], "/tmp/lifeline-fixture")
         self.assertEqual(data["last_prompt"], "Finish the Gemini to Claude route.")
         self.assertEqual(data["conversation"][1][0], "assistant")
+
+    def test_parsers_ignore_malformed_and_non_object_jsonl_entries(self):
+        parsers = (extractor.parse_session, codex_reader.parse_session, gemini_reader.parse_session)
+        content = "\n".join(["[]", '"string"', "123", "null", "{invalid"])
+
+        for parser in parsers:
+            with self.subTest(parser=parser.__module__), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "session.jsonl"
+                path.write_text(content)
+                data = parser(path)
+
+            self.assertEqual(data["conversation"], [])
+            self.assertIsNone(data["title"])
 
 
 class HandoffMatrixTests(unittest.TestCase):
@@ -126,18 +140,55 @@ class HandoffMatrixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             handoff_path = Path(tmp) / "handoff.md"
             handoff_path.write_text("private redacted context")
+            working_dir = Path(tmp) / "project"
+            working_dir.mkdir()
             completed = mock.Mock(returncode=0, stdout="", stderr="")
             with mock.patch("terminal_launchers.sys.platform", "darwin"), \
                  mock.patch("terminal_launchers.shutil.which", return_value="/usr/bin/osascript"), \
                  mock.patch("terminal_launchers.subprocess.run", return_value=completed) as run:
-                handoff.launch_target_in_new_terminal("claude", handoff_path)
+                handoff.launch_target_in_new_terminal(
+                    "claude", handoff_path, fallback="codex", working_dir=working_dir
+                )
 
         argv = run.call_args.args[0]
         self.assertEqual(argv[:2], ["osascript", "-e"])
         self.assertIn("--resume-file", argv[2])
+        self.assertIn("--fallback codex", argv[2])
+        self.assertIn(str(working_dir), argv[2])
         escaped_path = str(handoff_path.resolve()).replace("\\", "\\\\")
         self.assertIn(escaped_path, argv[2])
         self.assertNotIn("private redacted context", argv[2])
+
+    def test_current_terminal_handoff_stays_protected_and_uses_source_cwd(self):
+        completed = mock.Mock(returncode=0)
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch("handoff.shutil.which", return_value="/installed"), \
+             mock.patch("handoff.subprocess.run", return_value=completed) as run:
+            result = handoff.launch_target(
+                "claude", "redacted context", fallback="codex", working_dir=tmp
+            )
+
+        argv = run.call_args.args[0]
+        self.assertEqual(result, 0)
+        self.assertIn("watch.py", argv[1])
+        self.assertIn("--new-terminal", argv)
+        self.assertEqual(argv[argv.index("--to") + 1], "codex")
+        self.assertIn("claude", argv)
+        self.assertIn("redacted context", argv[-1])
+        self.assertEqual(run.call_args.kwargs["cwd"], str(Path(tmp).resolve()))
+
+    def test_handoff_launches_unprotected_when_fallback_is_unavailable(self):
+        completed = mock.Mock(returncode=0)
+
+        def which(name):
+            return "/installed/claude" if name == "claude" else None
+
+        with mock.patch("handoff.shutil.which", side_effect=which), \
+             mock.patch("handoff.subprocess.run", return_value=completed) as run:
+            handoff.launch_target("claude", "context", fallback="codex")
+
+        self.assertEqual(run.call_args.args[0][0], "/installed/claude")
+        self.assertNotIn("watch.py", run.call_args.args[0])
 
     def test_resume_file_must_live_inside_handoff_directory(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch("handoff.HANDOFF_DIR", Path(tmp)):
@@ -148,6 +199,26 @@ class HandoffMatrixTests(unittest.TestCase):
                     handoff._validated_handoff_file(str(outside))
             finally:
                 outside.unlink()
+
+    def test_resume_and_session_symlinks_cannot_escape_allowed_roots(self):
+        if not hasattr(os, "symlink"):
+            self.skipTest("symlinks unavailable")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "root"
+            root.mkdir()
+            outside = Path(tmp) / "outside.jsonl"
+            outside.write_text("{}")
+            link = root / "link.jsonl"
+            try:
+                link.symlink_to(outside)
+            except OSError as exc:
+                self.skipTest(f"symlink creation unavailable: {exc}")
+
+            with mock.patch("handoff.HANDOFF_DIR", root):
+                with self.assertRaises(ValueError):
+                    handoff._validated_handoff_file(str(link))
+            with self.assertRaises(ValueError):
+                handoff._validated_session_file(str(link), mock.Mock(root=root))
 
     def test_exact_session_file_is_used_instead_of_latest(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -282,6 +353,20 @@ class WatchBehaviorTests(unittest.TestCase):
             b"or try again at 7:26 AM."
         )
         self.assertTrue(watcher.detected)
+
+    def test_real_limit_after_unrelated_false_positive_is_detected(self):
+        watcher = watch.LimitWatcher()
+        watcher.feed(b"Context limit reached; use compact.\n")
+        watcher.feed(b"You've hit your usage limit.")
+
+        self.assertTrue(watcher.detected)
+        self.assertEqual(watcher.matched_phrase, "hit your usage limit")
+
+    def test_rate_limiting_description_does_not_trigger(self):
+        watcher = watch.LimitWatcher()
+        watcher.feed(b"Rate limiting requests is enabled by the proxy.")
+
+        self.assertFalse(watcher.detected)
 
     def test_limit_selftest_prints_on_legacy_windows_console_encoding(self):
         raw = io.BytesIO()
@@ -466,6 +551,44 @@ class PlatformBackendTests(unittest.TestCase):
         ):
             argv = command_utils.resolved_argv(["claude", "--help"], windows=True)
         self.assertEqual(argv, [r"C:\Tools\claude.exe", "--help"])
+
+    @unittest.skipUnless(os.name == "nt", "requires native Windows cmd.exe")
+    def test_windows_cmd_shim_argument_cannot_inject_commands(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script = root / "target.cmd"
+            marker = root / "injected.txt"
+            script.write_text("@echo off\r\nexit /b 0\r\n")
+            payload = f'" & echo injected > "{marker}" & rem "'
+
+            result = subprocess.run(
+                command_utils.resolved_argv([str(script), payload], windows=True),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0)
+            self.assertFalse(marker.exists())
+
+    @unittest.skipUnless(os.name == "nt", "requires native Windows cmd.exe")
+    def test_windows_cmd_shim_preserves_percent_expressions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script = root / "target.cmd"
+            output = root / "argument.txt"
+            script.write_text(f'@echo off\r\n<nul set /p "=%~1" > "{output}"\r\n')
+            payload = "literal-%PATH%-value"
+
+            result = subprocess.run(
+                command_utils.resolved_argv([str(script), payload], windows=True),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(output.read_text(), payload)
 
     def test_windows_navigation_keys_translate_to_terminal_sequences(self):
         self.assertEqual(terminal_backends._windows_special_key("H"), "\x1b[A")
@@ -700,6 +823,9 @@ class RedactionTests(unittest.TestCase):
             "token sk-proj-ABCDEF0123456789abcdef",
             "set SERVICE_TOKEN=windowssecret123",
             "$env:SERVICE_PASSWORD='powershellsecret123'",
+            "JWT eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature123456789",
+            "DATABASE_URL=postgres://user:databasepassword@localhost/app",
+            "npm_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
             "normal sentence",
         ])
 
@@ -710,6 +836,9 @@ class RedactionTests(unittest.TestCase):
         self.assertNotIn("sk-proj-ABCDEF0123456789abcdef", cleaned)
         self.assertNotIn("windowssecret123", cleaned)
         self.assertNotIn("powershellsecret123", cleaned)
+        self.assertNotIn("signature123456789", cleaned)
+        self.assertNotIn("databasepassword", cleaned)
+        self.assertNotIn("npm_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", cleaned)
         self.assertIn("normal sentence", cleaned)
         self.assertGreaterEqual(sum(findings.values()), 3)
 
@@ -731,6 +860,19 @@ class RedactionTests(unittest.TestCase):
             self.assertNotEqual(first, second)
             self.assertEqual(first.read_text(), "first")
             self.assertEqual(second.read_text(), "second")
+
+    def test_existing_handoff_directory_is_hardened_before_write(self):
+        if os.name == "nt":
+            self.skipTest("POSIX permission bits are not enforced on Windows")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "handoffs"
+            root.mkdir(mode=0o777)
+            root.chmod(0o777)
+            with mock.patch("handoff.HANDOFF_DIR", root):
+                path = handoff.write_handoff_file("safe")
+
+            self.assertEqual(root.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
 
 class SessionTrackingTests(unittest.TestCase):
@@ -918,6 +1060,31 @@ class SessionTrackingTests(unittest.TestCase):
 
             self.assertEqual(records[0]["session_path"], str((root / "pinned.jsonl").resolve()))
             self.assertEqual(records[0]["status"], "active")
+
+    def test_active_registry_discards_corrupt_valid_json_records(self):
+        invalid_records = [
+            {"watcher_pid": os.getpid()},
+            {
+                "source": "unknown", "target": "codex",
+                "watcher_pid": os.getpid(), "session_id": "x",
+            },
+            {
+                "source": "codex", "target": "claude",
+                "watcher_pid": os.getpid(), "session_path": 123,
+            },
+            {
+                "source": "codex", "target": "claude",
+                "watcher_pid": os.getpid(), "candidates": [123],
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for index, record in enumerate(invalid_records):
+                (root / f"{index}.json").write_text(json.dumps(record))
+            registry = session_tracker.ActiveRegistry(root)
+
+            self.assertEqual(registry.live(), [])
+            self.assertEqual(list(root.glob("*.json")), [])
 
     def test_active_session_selector_filters_target_and_prompts_on_multiple(self):
         records = [

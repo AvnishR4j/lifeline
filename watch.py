@@ -54,7 +54,7 @@ LIMIT_PATTERNS = [
     re.compile(r"hit your (?:usage|account|plan) limit", re.I),  # Codex
     re.compile(r"upgrade to increase your usage limit", re.I),
     re.compile(r"approaching .{0,30}usage limit", re.I),
-    re.compile(r"rate limit(?:ed|ing| reached| exceeded)", re.I),
+    re.compile(r"rate limit(?:ed| reached| exceeded)", re.I),
     re.compile(r"too many requests", re.I),       # Codex/Gemini 429 surface text
     re.compile(r"resource_exhausted", re.I),      # Google API quota status (Gemini)
     # Session / weekly / monthly limit banners, e.g. "5-hour limit reached ∙
@@ -90,7 +90,7 @@ class LimitWatcher:
         text = ANSI_RE.sub(b"", buf).decode("utf-8", "ignore")
         for pat in LIMIT_PATTERNS:
             m = pat.search(text)
-            if m and not self._is_false_positive(text):
+            if m and not self._is_false_positive(text, m):
                 self.detected = True
                 self.matched_phrase = m.group(0)
                 return
@@ -98,10 +98,15 @@ class LimitWatcher:
         self._tail = buf[-512:]
 
     @staticmethod
-    def _is_false_positive(text: str) -> bool:
+    def _is_false_positive(text: str, match) -> bool:
         """True if the text is a look-alike (context/fast/server limit), not an
         actual usage/rate-limit interruption."""
-        return any(p.search(text) for p in _NON_LIMIT_PATTERNS)
+        line_start = text.rfind("\n", 0, match.start()) + 1
+        line_end = text.find("\n", match.end())
+        if line_end == -1:
+            line_end = len(text)
+        matched_line = text[line_start:line_end]
+        return any(p.search(matched_line) for p in _NON_LIMIT_PATTERNS)
 
 
 def feed_and_notify(watcher: LimitWatcher, data: bytes, on_detect=None):
@@ -188,10 +193,12 @@ def selftest():
         ("Usage limit reached for gemini-2.5-pro", True),
         ("Rate limit exceeded. Try again later.", True),
         ("ApiError: status RESOURCE_EXHAUSTED", True),
+        ("Context limit reached.\nYou've hit your usage limit.", True),
         # --- look-alikes that must NOT trigger a handoff ---
         ("Context limit reached — use /compact to continue", False),
         ("Fast limit reached and temporarily disabled", False),
         ("Server is temporarily limiting requests (not your usage limit)", False),
+        ("Rate limiting requests is enabled by the proxy.", False),
         ("Concurrent export limit reached", False),
         ("You've hit your character limit for this field", False),
         # --- ordinary output ---

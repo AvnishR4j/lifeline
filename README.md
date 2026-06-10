@@ -78,7 +78,9 @@ If that message was not shown when the AI started, the session is not protected.
 ### 3. Let Lifeline switch automatically
 
 When Lifeline sees a real usage-limit message, it captures the exact protected
-session and opens the selected target with its context.
+session and opens the selected target with its context. The target starts in the
+captured project directory and remains protected, so a later limit can hand the
+work back again.
 
 You can also switch before the limit. Open another normal terminal and run:
 
@@ -112,7 +114,7 @@ source ~/.zshrc
 ```
 
 On macOS, Lifeline opens the target in a new Terminal.app window while keeping
-the limited session open.
+the limited session open. The resumed target remains under Lifeline protection.
 
 ### Windows
 
@@ -259,7 +261,9 @@ This will:
 2. Extract the task, recent conversation, last prompt, and uncommitted `git diff`.
 3. **Redact secrets** (see below) and warn you about what was scrubbed.
 4. Write a secret-safe handoff file to `~/.lifeline/handoffs/`.
-5. Launch the target CLI seeded with that context.
+5. Launch the target CLI seeded with that context, in the captured project
+   directory and under continued Lifeline protection when the source CLI is
+   still installed.
 
 ### Diagnostics
 
@@ -292,13 +296,13 @@ Codex→Claude or Gemini→Codex is not working.
 The handoff ships session content to another AI provider, so:
 
 - **Secret redaction** — `redact.py` scans for OpenAI/GitHub/AWS/Google/Slack
-  keys, Bearer tokens, PEM private keys, and `.env`-style secret assignments, and
-  replaces them with `[REDACTED:<kind>]`. It runs locally (regex only, no network,
-  no cost) and prints a summary of what was redacted before launch.
-- **No command injection** — the target CLI is launched with an argv list
-  (`subprocess.run([...])`), never a shell string. The redacted handoff is passed
-  inline so every supported target can receive it despite workspace/gitignore
-  restrictions.
+  keys, common service tokens, JWTs, credentials embedded in URLs, Bearer
+  tokens, PEM private keys, and `.env`-style secret assignments, and replaces
+  them with `[REDACTED:<kind>]`. It runs locally (regex only, no network, no
+  cost) and prints a summary of what was redacted before launch.
+- **Safe process launch** — native executables receive argv lists directly.
+  Windows `.cmd`/`.bat` shims use the platform command processor with dedicated
+  quoting and cross-platform regression tests.
 - **Private local storage** — handoff files live under
   `~/.lifeline/handoffs/`. Unix uses `0600` files in `0700` directories;
   Windows relies on the current user's profile-directory access controls.

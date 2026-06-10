@@ -67,7 +67,9 @@ def parse_session(path: Path) -> dict:
         line = line.strip()
         if line:
             try:
-                entries.append(json.loads(line))
+                entry = json.loads(line)
+                if isinstance(entry, dict):
+                    entries.append(entry)
             except json.JSONDecodeError:
                 continue
 

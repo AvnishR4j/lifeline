@@ -362,10 +362,28 @@ class ActiveRegistry:
             except (OSError, json.JSONDecodeError):
                 self.remove(path)
                 continue
+            if not isinstance(data, dict):
+                self.remove(path)
+                continue
             if not self._pid_alive(data.get("watcher_pid")):
                 self.remove(path)
                 continue
+            if data.get("source") not in sources.SUPPORTED_SOURCES:
+                self.remove(path)
+                continue
+            if data.get("target") not in sources.SUPPORTED_SOURCES:
+                self.remove(path)
+                continue
             session_path = data.get("session_path")
+            if session_path is not None and not isinstance(session_path, str):
+                self.remove(path)
+                continue
+            candidates = data.get("candidates", [])
+            if not isinstance(candidates, list) or not all(
+                isinstance(candidate, str) for candidate in candidates
+            ):
+                self.remove(path)
+                continue
             if not session_path and data.get("session_id") and data.get("source"):
                 matches = [
                     candidate for candidate in list_sessions(data["source"])
