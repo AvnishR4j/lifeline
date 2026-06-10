@@ -546,6 +546,16 @@ class PlatformBackendTests(unittest.TestCase):
         self.assertIn("codex.cmd", argv[-1])
         self.assertIn('"prompt with spaces"', argv[-1])
 
+    def test_windows_cmd_shims_escape_percent_expansion(self):
+        with mock.patch(
+            "command_utils.shutil.which", return_value=r"C:\Tools\codex.cmd"
+        ), mock.patch.dict("command_utils.os.environ", {"COMSPEC": r"C:\Windows\cmd.exe"}):
+            argv = command_utils.resolved_argv(
+                ["codex", "literal-%PATH%-value"], windows=True
+            )
+
+        self.assertIn("literal-%%PATH%%-value", argv[-1])
+
     def test_native_windows_executable_remains_direct(self):
         with mock.patch(
             "command_utils.shutil.which", return_value=r"C:\Tools\claude.exe"

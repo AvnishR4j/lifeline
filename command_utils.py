@@ -6,6 +6,11 @@ import shutil
 import subprocess
 
 
+def _escape_cmd_expansion(value):
+    """Prevent cmd.exe from expanding percent expressions in shim arguments."""
+    return str(value).replace("%", "%%")
+
+
 def resolved_argv(argv, windows=None):
     """Resolve executables and wrap Windows cmd/bat shims when required."""
     argv = list(argv)
@@ -14,7 +19,9 @@ def resolved_argv(argv, windows=None):
     windows = os.name == "nt" if windows is None else windows
     executable = shutil.which(argv[0]) or argv[0]
     if windows and ntpath.splitext(executable)[1].lower() in (".cmd", ".bat"):
-        command = subprocess.list2cmdline([executable, *argv[1:]])
+        command = subprocess.list2cmdline(
+            [_escape_cmd_expansion(value) for value in [executable, *argv[1:]]]
+        )
         shell = os.environ.get("COMSPEC") or shutil.which("cmd.exe") or "cmd.exe"
         return [shell, "/d", "/s", "/c", command]
     return [executable, *argv[1:]]
