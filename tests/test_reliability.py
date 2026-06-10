@@ -154,7 +154,8 @@ class HandoffMatrixTests(unittest.TestCase):
         self.assertEqual(argv[:2], ["osascript", "-e"])
         self.assertIn("--resume-file", argv[2])
         self.assertIn("--fallback codex", argv[2])
-        self.assertIn(str(working_dir), argv[2])
+        escaped_working_dir = str(working_dir.resolve()).replace("\\", "\\\\")
+        self.assertIn(escaped_working_dir, argv[2])
         escaped_path = str(handoff_path.resolve()).replace("\\", "\\\\")
         self.assertIn(escaped_path, argv[2])
         self.assertNotIn("private redacted context", argv[2])
@@ -577,7 +578,7 @@ class PlatformBackendTests(unittest.TestCase):
             root = Path(tmp)
             script = root / "target.cmd"
             output = root / "argument.txt"
-            script.write_text(f'@echo off\r\n<nul set /p "=%~1" > "{output}"\r\n')
+            script.write_text(f'@echo off\r\n> "{output}" echo(%~1\r\n')
             payload = "literal-%PATH%-value"
 
             result = subprocess.run(
@@ -588,7 +589,7 @@ class PlatformBackendTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 0)
-            self.assertEqual(output.read_text(), payload)
+            self.assertEqual(output.read_text().strip(), payload)
 
     def test_windows_navigation_keys_translate_to_terminal_sequences(self):
         self.assertEqual(terminal_backends._windows_special_key("H"), "\x1b[A")
