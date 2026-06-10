@@ -511,6 +511,37 @@ class PlatformBackendTests(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertTrue(watcher.detected)
 
+    def test_windows_backend_treats_winpty_eof_as_normal_exit(self):
+        class FakeWinptyError(Exception):
+            pass
+
+        class FakePty:
+            def __init__(self, _columns, _rows):
+                pass
+
+            def spawn(self, _command):
+                pass
+
+            def isalive(self):
+                return False
+
+            def read(self):
+                raise FakeWinptyError("Standard out reached EOF")
+
+            def get_exitstatus(self):
+                return 0
+
+        fake_module = type(
+            "FakeWinpty", (), {"PTY": FakePty, "WinptyError": FakeWinptyError}
+        )
+        with mock.patch.dict("sys.modules", {"winpty": fake_module}), \
+             mock.patch("terminal_backends.sys.stdin.isatty", return_value=False):
+            status = terminal_backends._run_windows(
+                ["codex"], watch.LimitWatcher()
+            )
+
+        self.assertEqual(status, 0)
+
     def test_windows_terminal_is_preferred(self):
         completed = mock.Mock(returncode=0, stdout="", stderr="")
 

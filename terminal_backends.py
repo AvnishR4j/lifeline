@@ -127,12 +127,18 @@ def sync_window_size(master_fd: int, source_fd: int) -> bool:
 
 def _run_windows(command, watcher, on_detect=None, on_activity=None) -> int:
     try:
-        from winpty import PTY
+        import winpty
     except ImportError as exc:
         raise OSError(
             "Native Windows automatic protection requires pywinpty. "
             "Reinstall Lifeline with `py -m pip install --upgrade lifeline`."
         ) from exc
+
+    PTY = winpty.PTY
+    read_errors = (EOFError, OSError)
+    winpty_error = getattr(winpty, "WinptyError", None)
+    if isinstance(winpty_error, type) and issubclass(winpty_error, Exception):
+        read_errors += (winpty_error,)
 
     columns, rows = shutil.get_terminal_size(fallback=(120, 30))
     process = PTY(columns, rows)
@@ -163,7 +169,7 @@ def _run_windows(command, watcher, on_detect=None, on_activity=None) -> int:
         while process.isalive():
             try:
                 text = process.read()
-            except (EOFError, OSError):
+            except read_errors:
                 break
             if not text:
                 time.sleep(0.01)
@@ -178,7 +184,7 @@ def _run_windows(command, watcher, on_detect=None, on_activity=None) -> int:
         # ConPTY can retain the child's final output after its process exits.
         try:
             trailing = process.read()
-        except (EOFError, OSError):
+        except read_errors:
             trailing = None
         if trailing:
             _emit_windows_output(trailing, watcher, on_detect, on_activity)
@@ -194,7 +200,7 @@ def _run_windows(command, watcher, on_detect=None, on_activity=None) -> int:
 
     try:
         return int(process.get_exitstatus())
-    except (AttributeError, OSError, TypeError, ValueError):
+    except read_errors + (AttributeError, TypeError, ValueError):
         return 0
 
 
