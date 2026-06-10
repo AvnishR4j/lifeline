@@ -301,8 +301,9 @@ The handoff ships session content to another AI provider, so:
   them with `[REDACTED:<kind>]`. It runs locally (regex only, no network, no
   cost) and prints a summary of what was redacted before launch.
 - **Safe process launch** — native executables receive argv lists directly.
-  Windows `.cmd`/`.bat` shims use the platform command processor with dedicated
-  quoting and cross-platform regression tests.
+  Windows npm `.cmd` shims are replaced with their PowerShell companions so
+  handoff text stays data instead of being re-parsed by a batch shell. Lifeline
+  rejects batch-only targets that cannot safely preserve arbitrary context.
 - **Private local storage** — handoff files live under
   `~/.lifeline/handoffs/`. Unix uses `0600` files in `0700` directories;
   Windows relies on the current user's profile-directory access controls.

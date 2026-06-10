@@ -534,27 +534,31 @@ class PlatformBackendTests(unittest.TestCase):
              mock.patch("terminal_launchers.sys.platform", "linux"):
             self.assertFalse(terminal_launchers.supports_new_terminal())
 
-    def test_windows_cmd_shims_are_wrapped_safely(self):
+    def test_windows_cmd_shims_use_powershell_companion(self):
+        locations = {
+            "codex": r"C:\Tools\codex.cmd",
+            "powershell.exe": r"C:\Windows\powershell.exe",
+        }
         with mock.patch(
-            "command_utils.shutil.which", return_value=r"C:\Tools\codex.cmd"
-        ), mock.patch.dict("command_utils.os.environ", {"COMSPEC": r"C:\Windows\cmd.exe"}):
+            "command_utils.shutil.which", side_effect=locations.get
+        ), mock.patch("command_utils.os.path.isfile", return_value=True):
             argv = command_utils.resolved_argv(
                 ["codex", "prompt with spaces"], windows=True
             )
 
-        self.assertEqual(argv[:4], [r"C:\Windows\cmd.exe", "/d", "/s", "/c"])
-        self.assertIn("codex.cmd", argv[-1])
-        self.assertIn('"prompt with spaces"', argv[-1])
+        self.assertEqual(argv[0], r"C:\Windows\powershell.exe")
+        self.assertIn("-ExecutionPolicy", argv)
+        self.assertIn(r"C:\Tools\codex.ps1", argv)
+        self.assertEqual(argv[-1], "prompt with spaces")
 
-    def test_windows_cmd_shims_escape_percent_expansion(self):
+    def test_windows_batch_shim_without_safe_companion_is_rejected(self):
         with mock.patch(
             "command_utils.shutil.which", return_value=r"C:\Tools\codex.cmd"
-        ), mock.patch.dict("command_utils.os.environ", {"COMSPEC": r"C:\Windows\cmd.exe"}):
-            argv = command_utils.resolved_argv(
-                ["codex", "literal-%PATH%-value"], windows=True
-            )
-
-        self.assertIn("literal-%%%%PATH%%%%-value", argv[-1])
+        ), mock.patch("command_utils.os.path.isfile", return_value=False):
+            with self.assertRaisesRegex(OSError, "Cannot safely launch"):
+                command_utils.resolved_argv(
+                    ["codex", "literal-%PATH%-value"], windows=True
+                )
 
     def test_native_windows_executable_remains_direct(self):
         with mock.patch(
@@ -568,38 +572,49 @@ class PlatformBackendTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             script = root / "target.cmd"
+            powershell_script = root / "target.ps1"
             marker = root / "injected.txt"
             script.write_text("@echo off\r\nexit /b 0\r\n")
+            powershell_script.write_text("exit 0\r\n")
             payload = f'" & echo injected > "{marker}" & rem "'
 
-            result = subprocess.run(
+            commands = [
                 command_utils.resolved_argv([str(script), payload], windows=True),
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-
-            self.assertEqual(result.returncode, 0)
-            self.assertFalse(marker.exists())
+                command_utils.windows_command_line([str(script), payload]),
+            ]
+            for command in commands:
+                with self.subTest(command_type=type(command).__name__):
+                    result = subprocess.run(
+                        command, capture_output=True, text=True, check=False
+                    )
+                    self.assertEqual(result.returncode, 0)
+                    self.assertFalse(marker.exists())
 
     @unittest.skipUnless(os.name == "nt", "requires native Windows cmd.exe")
     def test_windows_cmd_shim_preserves_percent_expressions(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             script = root / "target.cmd"
+            powershell_script = root / "target.ps1"
             output = root / "argument.txt"
-            script.write_text(f'@echo off\r\n> "{output}" echo(%~1\r\n')
-            payload = "literal-%PATH%-value"
-
-            result = subprocess.run(
-                command_utils.resolved_argv([str(script), payload], windows=True),
-                capture_output=True,
-                text=True,
-                check=False,
+            script.write_text("@echo off\r\nexit /b 0\r\n")
+            escaped_output = str(output).replace("'", "''")
+            powershell_script.write_text(
+                f"[IO.File]::WriteAllText('{escaped_output}', $args[0])\r\n"
             )
+            payload = 'literal-%PATH%-!name!-&-"-value\nsecond line $HOME `code`'
 
-            self.assertEqual(result.returncode, 0)
-            self.assertEqual(output.read_text().strip(), payload)
+            commands = [
+                command_utils.resolved_argv([str(script), payload], windows=True),
+                command_utils.windows_command_line([str(script), payload]),
+            ]
+            for command in commands:
+                with self.subTest(command_type=type(command).__name__):
+                    result = subprocess.run(
+                        command, capture_output=True, text=True, check=False
+                    )
+                    self.assertEqual(result.returncode, 0)
+                    self.assertEqual(output.read_text(), payload)
 
     def test_windows_navigation_keys_translate_to_terminal_sequences(self):
         self.assertEqual(terminal_backends._windows_special_key("H"), "\x1b[A")
