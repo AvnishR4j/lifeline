@@ -8,6 +8,7 @@
   project directory.
 - Added immediate new-terminal handoffs on macOS and native Windows.
 - Added native Windows ConPTY support through a Windows-only `pywinpty` dependency.
+- Pinned native Windows support to the compatible `pywinpty` 2.x line.
 - Windows npm command shims now use their PowerShell companions to preserve
   arbitrary handoff text and reject unsafe batch-only launch paths.
 - Added Linux and WSL fallback behavior.
