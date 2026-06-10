@@ -554,7 +554,7 @@ class PlatformBackendTests(unittest.TestCase):
                 ["codex", "literal-%PATH%-value"], windows=True
             )
 
-        self.assertIn("literal-%%PATH%%-value", argv[-1])
+        self.assertIn("literal-%%%%PATH%%%%-value", argv[-1])
 
     def test_native_windows_executable_remains_direct(self):
         with mock.patch(

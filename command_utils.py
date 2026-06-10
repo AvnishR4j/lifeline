@@ -7,8 +7,8 @@ import subprocess
 
 
 def _escape_cmd_expansion(value):
-    """Prevent cmd.exe from expanding percent expressions in shim arguments."""
-    return str(value).replace("%", "%%")
+    """Prevent both cmd.exe parse stages from expanding percent expressions."""
+    return str(value).replace("%", "%%%%")
 
 
 def resolved_argv(argv, windows=None):
