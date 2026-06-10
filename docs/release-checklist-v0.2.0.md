@@ -2,10 +2,12 @@
 
 ## Automated Gates
 
-- [ ] CI passes on macOS, Windows, and Linux for Python 3.9, 3.11, and 3.13.
-- [ ] Wheel and source distribution pass `twine check`.
-- [ ] Clean wheel installation passes on all three operating systems.
-- [ ] Repository and history contain no secrets or private transcripts.
+- [x] CI passes on macOS, Windows, and Linux for Python 3.9, 3.11, and 3.13.
+- [x] Wheel and source distribution pass `twine check`.
+- [x] Clean wheel installation passes on all three operating systems.
+- [x] Repository and history contain no secrets or private transcripts.
+
+Automated evidence: [CI run 27263210868](https://github.com/AvnishR4j/lifeline/actions/runs/27263210868).
 
 ## Handoff Matrix
 
