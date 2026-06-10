@@ -3,6 +3,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -426,6 +427,18 @@ class PlatformBackendTests(unittest.TestCase):
             with self.assertRaises(OSError) as cm:
                 terminal_backends._run_windows(["codex"], watcher)
         self.assertIn("requires pywinpty", str(cm.exception))
+
+    @unittest.skipUnless(os.name == "nt", "requires native Windows ConPTY")
+    def test_native_windows_conpty_smoke(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            status = terminal_backends._run_windows(
+                [sys.executable, "-c", "print('lifeline-conpty-ok')"],
+                watch.LimitWatcher(),
+            )
+
+        self.assertEqual(status, 0)
+        self.assertIn("lifeline-conpty-ok", output.getvalue())
 
     def test_windows_backend_forwards_output_and_exit_status(self):
         class FakePty:
