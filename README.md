@@ -26,7 +26,14 @@ lifeline codex
 No re-explanation. No guessing which session you meant. The original session
 stays available.
 
+## Watch The Demo
+
+See Lifeline detect an interrupted AI coding session, capture its context, and
+continue the work in another CLI.
+
 https://github.com/user-attachments/assets/ad48a1b8-0ae7-4553-b266-0f4794500085
+
+The video plays directly on GitHub; no download is required.
 
 ## The Important Rule
 
