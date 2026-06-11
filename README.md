@@ -31,7 +31,11 @@ stays available.
 See Lifeline detect an interrupted AI coding session, capture its context, and
 continue the work in another CLI.
 
-https://github.com/user-attachments/assets/ad48a1b8-0ae7-4553-b266-0f4794500085
+
+
+https://github.com/user-attachments/assets/0ca13818-888b-4fa7-a208-780cca28b752
+
+
 
 The video plays directly on GitHub; no download is required.
 
