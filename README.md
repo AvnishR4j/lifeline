@@ -3,6 +3,7 @@
 > When your AI hits its limit, your work shouldn't.
 
 [![CI](https://github.com/AvnishR4j/lifeline/actions/workflows/ci.yml/badge.svg)](https://github.com/AvnishR4j/lifeline/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/lifeline)](https://pypi.org/project/lifeline/)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-3776AB)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -106,8 +107,8 @@ lifeline switch claude
 Requirements: Python 3.9+, and at least two authenticated supported AI CLIs.
 
 ```bash
-# Install Lifeline directly from GitHub
-python3 -m pip install --user --upgrade git+https://github.com/AvnishR4j/lifeline.git
+# Install or update Lifeline from PyPI
+python3 -m pip install --user --upgrade lifeline
 
 # Confirm your setup
 lifeline doctor
@@ -132,8 +133,8 @@ the limited session open. The resumed target remains under Lifeline protection.
 Use PowerShell or cmd. Python 3.9+ is required. Windows Terminal is recommended.
 
 ```powershell
-# Install or update to the latest GitHub version
-py -m pip install --upgrade --force-reinstall git+https://github.com/AvnishR4j/lifeline.git
+# Install or update Lifeline from PyPI
+py -m pip install --upgrade lifeline
 
 # Confirm the installed version and inspect the environment
 lifeline version
@@ -147,15 +148,15 @@ Native Windows automatically installs `pywinpty` for interactive ConPTY support.
 For immediate handoffs, Lifeline tries Windows Terminal, PowerShell, then cmd.
 Git Bash is best-effort.
 
-Windows users upgrading from `v0.2.0` should use the force-reinstall command
-above. `v0.2.1` fixes native ConPTY keyboard input, supports current Gemini CLI
-launches without the removed `--session-id` argument, and tolerates Windows
-transcript encoding differences.
+Windows users upgrading from `v0.2.0` should install `v0.2.1` or later. It fixes
+native ConPTY keyboard input, supports current Gemini CLI launches without the
+removed `--session-id` argument, and tolerates Windows transcript encoding
+differences.
 
 ### Linux
 
 ```bash
-python3 -m pip install --user --upgrade git+https://github.com/AvnishR4j/lifeline.git
+python3 -m pip install --user --upgrade lifeline
 lifeline doctor
 lifeline codex
 ```
@@ -168,7 +169,7 @@ the limited CLI exits.
 Install and run Lifeline inside WSL using the Linux commands:
 
 ```bash
-python3 -m pip install --user --upgrade git+https://github.com/AvnishR4j/lifeline.git
+python3 -m pip install --user --upgrade lifeline
 lifeline doctor
 lifeline codex
 ```
@@ -364,7 +365,7 @@ paths, session roots, parser health, and native Windows `pywinpty` availability.
 On Windows, update with:
 
 ```powershell
-py -m pip install --upgrade --force-reinstall git+https://github.com/AvnishR4j/lifeline.git
+py -m pip install --upgrade --force-reinstall lifeline
 lifeline version
 lifeline doctor
 ```
