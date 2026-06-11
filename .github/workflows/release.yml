@@ -26,10 +26,9 @@ jobs:
       - run: python watch.py --selftest
       - run: lifeline --help
 
-  build-publish:
+  build-release:
     needs: validate
     runs-on: ubuntu-latest
-    environment: pypi
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -44,7 +43,6 @@ jobs:
       - run: python -m unittest discover -s tests -v
       - run: python -m build
       - run: python -m twine check dist/*
-      - uses: pypa/gh-action-pypi-publish@release/v1
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
