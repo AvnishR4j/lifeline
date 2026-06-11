@@ -70,6 +70,44 @@ class ParserFixtureTests(unittest.TestCase):
             self.assertEqual(data["conversation"], [])
             self.assertIsNone(data["title"])
 
+    def test_parsers_tolerate_non_utf8_transcript_bytes(self):
+        contents = {
+            extractor.parse_session: (
+                b'{"type":"last-prompt","lastPrompt":"repair '
+                + bytes([0x90])
+                + b' session"}\n'
+            ),
+            codex_reader.parse_session: (
+                b'{"type":"session_meta","payload":{"cwd":"C:\\\\\\\\repo",'
+                b'"note":"repair '
+                + bytes([0x90])
+                + b' session"}}\n'
+            ),
+            gemini_reader.parse_session: (
+                b'{"type":"user","content":"repair '
+                + bytes([0x90])
+                + b' session"}\n'
+            ),
+        }
+        for parser, content in contents.items():
+            with self.subTest(parser=parser.__module__), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "session.jsonl"
+                path.write_bytes(content)
+                data = parser(path)
+            self.assertIsInstance(data, dict)
+
+    def test_gemini_workspace_context_supports_windows_paths(self):
+        context = (
+            "<session_context>\n"
+            "Workspace Directories:\n"
+            "- `C:\\Users\\lenovo\\project`\n"
+            "</session_context>"
+        )
+        self.assertEqual(
+            gemini_reader._cwd_from_context(context),
+            r"C:\Users\lenovo\project",
+        )
+
 
 class HandoffMatrixTests(unittest.TestCase):
     def test_all_valid_source_target_pairs_complete_dry_run(self):
@@ -510,6 +548,48 @@ class PlatformBackendTests(unittest.TestCase):
 
         self.assertEqual(status, 0)
         self.assertTrue(watcher.detected)
+
+    def test_windows_backend_writes_text_to_pywinpty(self):
+        class FakePty:
+            instance = None
+
+            def __init__(self, _columns, _rows):
+                self.alive = True
+                self.writes = []
+                FakePty.instance = self
+
+            def spawn(self, _command):
+                pass
+
+            def isalive(self):
+                return self.alive
+
+            def read(self):
+                return ""
+
+            def write(self, value):
+                self.writes.append(value)
+                self.alive = False
+
+            def get_exitstatus(self):
+                return 0
+
+        fake_module = type("FakeWinpty", (), {"PTY": FakePty})
+        fake_msvcrt = mock.Mock()
+        fake_msvcrt.kbhit.return_value = True
+        fake_msvcrt.getwch.return_value = "a"
+        with mock.patch.dict(
+            "sys.modules", {"winpty": fake_module, "msvcrt": fake_msvcrt}
+        ), mock.patch(
+            "terminal_backends.sys.stdin.isatty", return_value=True
+        ), mock.patch(
+            "command_utils.shutil.which", return_value="codex.exe"
+        ):
+            status = terminal_backends._run_windows(["codex"], watch.LimitWatcher())
+
+        self.assertEqual(status, 0)
+        self.assertEqual(FakePty.instance.writes, ["a"])
+        self.assertIsInstance(FakePty.instance.writes[0], str)
 
     def test_windows_backend_treats_winpty_eof_as_normal_exit(self):
         class FakeWinptyError(Exception):
@@ -972,14 +1052,19 @@ class SessionTrackingTests(unittest.TestCase):
             ) + "\n"
         )
 
-    def test_fresh_claude_and_gemini_launches_receive_session_ids(self):
-        for source_name in ("claude", "gemini"):
-            with self.subTest(source=source_name):
-                command, expected = session_tracker.prepare_command(
-                    source_name, [source_name, "--model", "test"]
-                )
-                self.assertIsNotNone(expected)
-                self.assertEqual(command[-2:], ["--session-id", expected])
+    def test_fresh_claude_launch_receives_session_id(self):
+        command, expected = session_tracker.prepare_command(
+            "claude", ["claude", "--model", "test"]
+        )
+        self.assertIsNotNone(expected)
+        self.assertEqual(command[-2:], ["--session-id", expected])
+
+    def test_fresh_gemini_launch_does_not_receive_unsupported_session_id(self):
+        command, expected = session_tracker.prepare_command(
+            "gemini", ["gemini", "--model", "test"]
+        )
+        self.assertEqual(command, ["gemini", "--model", "test"])
+        self.assertIsNone(expected)
 
     def test_resume_selectors_are_preserved_and_codex_is_not_modified(self):
         valid_id = "12345678-1234-4234-8234-123456789abc"
@@ -1055,6 +1140,34 @@ class SessionTrackingTests(unittest.TestCase):
                 selected = tracker.require_session()
 
             self.assertEqual(selected, (root / "right.jsonl").resolve())
+
+    def test_gemini_tracker_uses_new_session_with_matching_cwd(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "sessions"
+            active_root = Path(tmp) / "active"
+            right_cwd = Path(tmp) / "project"
+            wrong_cwd = Path(tmp) / "other"
+            right_cwd.mkdir()
+            wrong_cwd.mkdir()
+
+            def parse(path):
+                return {"cwd": path.read_text(encoding="utf-8")}
+
+            source = self._source("gemini", root, parse)
+            with mock.patch("session_tracker.sources.get_source", return_value=source):
+                tracker = session_tracker.SessionTracker(
+                    "gemini", "claude", ["gemini"], right_cwd,
+                    session_tracker.ActiveRegistry(active_root),
+                )
+                right = root / "project" / "chats" / "session-right.jsonl"
+                wrong = root / "other" / "chats" / "session-wrong.jsonl"
+                right.parent.mkdir(parents=True)
+                wrong.parent.mkdir(parents=True)
+                right.write_text(str(right_cwd), encoding="utf-8")
+                wrong.write_text(str(wrong_cwd), encoding="utf-8")
+                selected = tracker.require_session()
+
+            self.assertEqual(selected, right.resolve())
 
     def test_ambiguous_sessions_are_never_silently_selected(self):
         with tempfile.TemporaryDirectory() as tmp:

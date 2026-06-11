@@ -165,7 +165,10 @@ def prepare_command(source_name: str, command: List[str]):
     else:
         has_selector = True
 
-    if source_name in ("claude", "gemini") and not has_selector:
+    # Claude supports pinning a newly created session with --session-id.
+    # Gemini CLI 0.46+ rejects that flag, so Gemini sessions are discovered
+    # from the newly created transcript and matching workspace instead.
+    if source_name == "claude" and not has_selector:
         expected = str(uuid.uuid4())
         return [*command, "--session-id", expected], expected
     return command, None

@@ -42,7 +42,7 @@ def _is_noise(text: str) -> bool:
 def parse_session(path: Path) -> dict:
     """Pull the useful fields out of a session JSONL file."""
     entries = []
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = line.strip()
         if line:
             try:

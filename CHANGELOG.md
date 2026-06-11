@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.1
+
+- Fixed native Windows ConPTY keyboard input by sending text values to
+  `pywinpty` instead of unsupported byte strings.
+- Stopped injecting the removed Gemini CLI `--session-id` argument and preserved
+  exact-session discovery through the newly created transcript and workspace.
+- Made Claude, Codex, and Gemini transcript readers tolerate Windows encoding
+  differences and malformed bytes.
+- Added Windows workspace-path parsing for Gemini sessions.
+
 ## 0.2.0 - Public Beta
 
 - Added bidirectional Claude Code, Codex, and Gemini handoffs.

@@ -154,8 +154,8 @@ def _run_windows(command, watcher, on_detect=None, on_activity=None) -> int:
                 if key in ("\x00", "\xe0"):
                     key = _windows_special_key(msvcrt.getwch())
                 try:
-                    process.write(key.encode("utf-8", "replace"))
-                except OSError:
+                    process.write(key)
+                except read_errors + (TypeError,):
                     return
             else:
                 time.sleep(0.01)
@@ -190,8 +190,8 @@ def _run_windows(command, watcher, on_detect=None, on_activity=None) -> int:
             _emit_windows_output(trailing, watcher, on_detect, on_activity)
     except KeyboardInterrupt:
         try:
-            process.write(b"\x03")
-        except OSError:
+            process.write("\x03")
+        except read_errors + (TypeError,):
             pass
     finally:
         stop.set()

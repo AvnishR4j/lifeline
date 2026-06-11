@@ -33,7 +33,10 @@ _NOISE_PREFIXES = (
     "<environment_context>",
 )
 
-_WORKSPACE_RE = re.compile(r"Workspace Directories:\**\s*\n\s*-\s*(/\S+)")
+_WORKSPACE_RE = re.compile(
+    r"Workspace Directories:\**\s*\n\s*-\s*`?([^\r\n`]+)",
+    re.IGNORECASE,
+)
 
 
 def find_latest_session(session_dir: Path = None) -> Path:
@@ -82,18 +85,21 @@ def _iter_messages(entries):
 
 def _cwd_from_context(text: str):
     m = _WORKSPACE_RE.search(text)
-    return m.group(1) if m else None
+    return m.group(1).strip() if m else None
 
 
 def _cwd_from_projects(session_path: Path):
     """Fallback: map the project folder name back to its workspace path."""
     try:
-        project_seg = str(session_path).split("/tmp/")[1].split("/")[0]
-        projects = json.loads(_PROJECTS_JSON.read_text()).get("projects", {})
+        relative = session_path.resolve().relative_to(GEMINI_CHATS.resolve())
+        project_seg = relative.parts[0]
+        projects = json.loads(
+            _PROJECTS_JSON.read_text(encoding="utf-8", errors="replace")
+        ).get("projects", {})
         for path, name in projects.items():
             if name == project_seg:
                 return path
-    except (IndexError, OSError, json.JSONDecodeError, KeyError):
+    except (IndexError, OSError, ValueError, json.JSONDecodeError, KeyError):
         pass
     return None
 
@@ -101,7 +107,7 @@ def _cwd_from_projects(session_path: Path):
 def parse_session(path: Path) -> dict:
     """Pull the useful fields out of a Gemini chat JSONL file."""
     entries = []
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = line.strip()
         if line:
             try:
