@@ -1,11 +1,15 @@
-# Lifeline
+<p align="center">
+  <img src="https://raw.githubusercontent.com/AvnishR4j/lifeline/main/assets/lifeline-logo.png" alt="Lifeline: One session. Never lost." width="480">
+</p>
 
-> When your AI hits its limit, your work shouldn't.
+<p align="center"><strong>When your AI hits its limit, your work shouldn't.</strong></p>
 
-[![CI](https://github.com/AvnishR4j/lifeline/actions/workflows/ci.yml/badge.svg)](https://github.com/AvnishR4j/lifeline/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/lifeline)](https://pypi.org/project/lifeline/)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-3776AB)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+<p align="center">
+  <a href="https://github.com/AvnishR4j/lifeline/actions/workflows/ci.yml"><img src="https://github.com/AvnishR4j/lifeline/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://pypi.org/project/lifeline/"><img src="https://img.shields.io/pypi/v/lifeline" alt="PyPI version"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.9%2B-3776AB" alt="Python 3.9 or later"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
+</p>
 
 **v0.2.1 public beta** — macOS is the primary supported platform. Native
 Windows, Linux, and WSL are beta-supported.
