@@ -31,7 +31,7 @@ stays available.
 See Lifeline detect an interrupted AI coding session, capture its context, and
 continue the work in another CLI.
 
-https://github.com/AvnishR4j/lifeline/raw/refs/heads/main/assets/lifeline-demo.mp4
+<video controls src="https://github.com/AvnishR4j/lifeline/raw/refs/heads/main/assets/lifeline-demo.mp4"></video>
 
 The video plays directly on GitHub; no download is required.
 
