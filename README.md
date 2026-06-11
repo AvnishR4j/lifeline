@@ -27,6 +27,21 @@ lifeline codex
 No re-explanation. No guessing which session you meant. The original session
 stays available.
 
+## Quick Start
+
+Install Lifeline from [PyPI](https://pypi.org/project/lifeline/), verify your
+environment, and start a protected session:
+
+```bash
+pip install --upgrade lifeline
+lifeline doctor
+lifeline codex
+```
+
+Lifeline requires Python 3.9+ and at least two installed and authenticated
+supported AI CLIs. See the platform-specific instructions below if `pip` or
+`lifeline` is not available directly in your terminal.
+
 ## Watch The Demo
 
 See Lifeline detect an interrupted AI coding session, capture its context, and
