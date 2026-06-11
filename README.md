@@ -6,7 +6,7 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-3776AB)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**v0.2.0 public beta** — macOS is the primary supported platform. Native
+**v0.2.1 public beta** — macOS is the primary supported platform. Native
 Windows, Linux, and WSL are beta-supported.
 
 Lifeline runs Claude Code, Codex, or Gemini under protection. When the active AI
@@ -132,14 +132,25 @@ the limited session open. The resumed target remains under Lifeline protection.
 Use PowerShell or cmd. Python 3.9+ is required. Windows Terminal is recommended.
 
 ```powershell
-py -m pip install --upgrade git+https://github.com/AvnishR4j/lifeline.git
+# Install or update to the latest GitHub version
+py -m pip install --upgrade --force-reinstall git+https://github.com/AvnishR4j/lifeline.git
+
+# Confirm the installed version and inspect the environment
+lifeline version
 lifeline doctor
+
+# Start a protected session
 lifeline codex
 ```
 
 Native Windows automatically installs `pywinpty` for interactive ConPTY support.
 For immediate handoffs, Lifeline tries Windows Terminal, PowerShell, then cmd.
 Git Bash is best-effort.
+
+Windows users upgrading from `v0.2.0` should use the force-reinstall command
+above. `v0.2.1` fixes native ConPTY keyboard input, supports current Gemini CLI
+launches without the removed `--session-id` argument, and tolerates Windows
+transcript encoding differences.
 
 ### Linux
 
@@ -350,10 +361,18 @@ The handoff ships session content to another AI provider, so:
 Run `lifeline doctor` first. It reports the selected terminal backend, target CLI
 paths, session roots, parser health, and native Windows `pywinpty` availability.
 
-On Windows, reinstall with `py -m pip install --upgrade --force-reinstall
-lifeline` if ConPTY support is missing. If immediate handoff cannot open a new
-terminal, the generated handoff remains under `~/.lifeline/handoffs/` and the
-error includes the next action.
+On Windows, update with:
+
+```powershell
+py -m pip install --upgrade --force-reinstall git+https://github.com/AvnishR4j/lifeline.git
+lifeline version
+lifeline doctor
+```
+
+Use this update if keyboard input crashes with a `bytes ... PyString` error,
+Gemini reports `Unknown arguments: session-id`, or ConPTY support is missing.
+If immediate handoff cannot open a new terminal, the generated handoff remains
+under `~/.lifeline/handoffs/` and the error includes the next action.
 
 Uninstall with `pipx uninstall lifeline` or `py -m pip uninstall lifeline`.
 
